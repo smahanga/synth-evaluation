@@ -405,6 +405,7 @@ export default function App() {
       </div>
 
       {/* Config area */}
+      <div style={S.sectionTitle}>Step 3 — System Prompt {selectedBot === "external_api" ? "(External API)" : selectedBot !== "custom" ? "(editable)" : ""}</div>
       {selectedBot === "external_api" ? (
         <div style={S.card}>
           <div style={S.sectionTitle}>External API Configuration</div>
@@ -431,7 +432,6 @@ export default function App() {
         </div>
       ) : (
         <div style={S.card}>
-          <div style={S.sectionTitle}>Step 3 — System Prompt {selectedBot !== "custom" && "(editable)"}</div>
           <textarea style={S.textarea} value={targetPrompt} onChange={e => setTargetPrompt(e.target.value)}
             placeholder={selectedBot === "custom" ? "Write your bot's system prompt here..." : ""} />
         </div>

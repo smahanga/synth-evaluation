@@ -154,9 +154,8 @@ async function callClaude(systemPrompt, messages, maxTokens = 1024) {
   }
 }
 
-async function callExternalApi(apiUrl, apiKey, apiFormat, userMessage, history) {
+async function callExternalApi(apiUrl, apiFormat, userMessage, history) {
   const headers = { "Content-Type": "application/json" };
-  if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
   let body;
   if (apiFormat === "openai") {
     body = JSON.stringify({ model: "gpt-4", messages: [...history.map(m => ({ role: m.role, content: m.content })), { role: "user", content: userMessage }] });
@@ -254,7 +253,6 @@ export default function App() {
   const [selectedBot, setSelectedBot] = useState(null);
   const [targetPrompt, setTargetPrompt] = useState("");
   const [apiUrl, setApiUrl] = useState("");
-  const [apiKey, setApiKey] = useState("");
   const [apiFormat, setApiFormat] = useState("openai");
   const [maxTurns, setMaxTurns] = useState(4);
   const [messages, setMessages] = useState([]);
@@ -275,7 +273,7 @@ export default function App() {
     setView("home"); setSelectedPersona(null); setSelectedBot(null);
     setTargetPrompt(""); setMaxTurns(4); setMessages([]);
     setStatus(""); setEvaluation(null); setError(null); setConvDone(false);
-    setApiUrl(""); setApiKey(""); setApiFormat("openai");
+    setApiUrl(""); setApiFormat("openai");
   };
 
   // ──────────────────────────────────────────────────────────
@@ -312,7 +310,7 @@ export default function App() {
 
         let botReply;
         if (selectedBot === "external_api" && apiUrl.trim()) {
-          botReply = await callExternalApi(apiUrl, apiKey, apiFormat, userMsg, targetHistory.slice(0, -1));
+          botReply = await callExternalApi(apiUrl, apiFormat, userMsg, targetHistory.slice(0, -1));
         } else {
           botReply = await callClaude(targetPrompt, targetHistory);
         }
@@ -340,7 +338,7 @@ export default function App() {
     } catch (err) {
       if (!abortRef.current) { setError(err.message); setStatus("Error occurred."); }
     }
-  }, [selectedPersona, selectedBot, targetPrompt, maxTurns, apiUrl, apiKey, apiFormat]);
+  }, [selectedPersona, selectedBot, targetPrompt, maxTurns, apiUrl, apiFormat]);
 
   // ════════════════════════════════════════════════════════════
   //  WELCOME / SETUP VIEW — Combined landing page
@@ -407,19 +405,12 @@ export default function App() {
             <input type="text" value={apiUrl} onChange={e => setApiUrl(e.target.value)} placeholder="https://my-chatbot.com/api/chat"
               style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #333", background: "#131316", color: "#ddd", fontFamily: "'JetBrains Mono'", fontSize: 12, outline: "none", boxSizing: "border-box" }} />
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "#888", display: "block", marginBottom: 4 }}>API Key (optional)</label>
-              <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="sk-..."
-                style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #333", background: "#131316", color: "#ddd", fontFamily: "'JetBrains Mono'", fontSize: 12, outline: "none", boxSizing: "border-box" }} />
-            </div>
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "#888", display: "block", marginBottom: 4 }}>Format</label>
-              <div style={{ display: "flex", gap: 4 }}>
-                {[{id:"openai",l:"OpenAI"},{id:"anthropic",l:"Anthropic"},{id:"simple",l:"Simple"}].map(f => (
-                  <button key={f.id} onClick={() => setApiFormat(f.id)} style={{ flex:1, padding:"9px 4px", borderRadius:8, border:`1px solid ${apiFormat===f.id?"#F39C12":"#333"}`, background:apiFormat===f.id?"#F39C1215":"transparent", fontFamily:"'Space Grotesk'", fontSize:11, fontWeight:600, cursor:"pointer", color:apiFormat===f.id?"#F39C12":"#888" }}>{f.l}</button>
-                ))}
-              </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "#888", display: "block", marginBottom: 4 }}>Format</label>
+            <div style={{ display: "flex", gap: 4 }}>
+              {[{id:"openai",l:"OpenAI"},{id:"anthropic",l:"Anthropic"},{id:"simple",l:"Simple"}].map(f => (
+                <button key={f.id} onClick={() => setApiFormat(f.id)} style={{ flex:1, padding:"9px 4px", borderRadius:8, border:`1px solid ${apiFormat===f.id?"#F39C12":"#333"}`, background:apiFormat===f.id?"#F39C1215":"transparent", fontFamily:"'Space Grotesk'", fontSize:11, fontWeight:600, cursor:"pointer", color:apiFormat===f.id?"#F39C12":"#888" }}>{f.l}</button>
+              ))}
             </div>
           </div>
         </div>

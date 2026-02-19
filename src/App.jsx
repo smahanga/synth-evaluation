@@ -251,8 +251,8 @@ const S = {
 export default function App() {
   const [view, setView] = useState("home");
   const [selectedPersona, setSelectedPersona] = useState(null);
-  const [selectedBot, setSelectedBot] = useState("techflow_support");
-  const [targetPrompt, setTargetPrompt] = useState(TARGET_BOTS[0].prompt);
+  const [selectedBot, setSelectedBot] = useState(null);
+  const [targetPrompt, setTargetPrompt] = useState("");
   const [apiUrl, setApiUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [apiFormat, setApiFormat] = useState("openai");
@@ -263,6 +263,7 @@ export default function App() {
   const [error, setError] = useState(null);
   const [convDone, setConvDone] = useState(false);
   const scrollRef = useRef(null);
+  const personaSectionRef = useRef(null);
   const abortRef = useRef(false);
 
   useEffect(() => {
@@ -271,8 +272,8 @@ export default function App() {
 
   const resetAll = () => {
     abortRef.current = true;
-    setView("home"); setSelectedPersona(null); setSelectedBot("techflow_support");
-    setTargetPrompt(TARGET_BOTS[0].prompt); setMaxTurns(4); setMessages([]);
+    setView("home"); setSelectedPersona(null); setSelectedBot(null);
+    setTargetPrompt(""); setMaxTurns(4); setMessages([]);
     setStatus(""); setEvaluation(null); setError(null); setConvDone(false);
     setApiUrl(""); setApiKey(""); setApiFormat("openai");
   };
@@ -374,10 +375,17 @@ export default function App() {
       </div>
 
       {/* Build Your Test */}
-      <div style={S.sectionTitle}>Step 1 — Choose a Bot to Test</div>
+      <div style={{ ...S.sectionTitle, color: "#F39C12", fontSize: 12 }}>Step 1 — Choose a Bot to Test 🛠️</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 10, marginBottom: 20 }}>
         {TARGET_BOTS.map(b => (
-          <div key={b.id} onClick={() => { setSelectedBot(b.id); if (b.prompt) setTargetPrompt(b.prompt); else if (b.id === "custom") setTargetPrompt(""); }}
+          <div key={b.id} onClick={() => {
+            setSelectedBot(b.id);
+            if (b.prompt) setTargetPrompt(b.prompt);
+            else if (b.id === "custom") setTargetPrompt("");
+            setTimeout(() => {
+              personaSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }, 50);
+          }}
             style={{ border: `2px solid ${selectedBot === b.id ? "#F39C12" : "#2A2A30"}`, borderRadius: 12, padding: 13, cursor: "pointer", background: selectedBot === b.id ? "#F39C1210" : "#1A1A1F", transition: "all 0.2s", position: "relative" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 5 }}>
               <span style={{ fontSize: 22 }}>{b.icon}</span>
@@ -422,7 +430,7 @@ export default function App() {
         </div>
       )}
 
-      <div style={S.sectionTitle}>Step 3 — Choose a Persona</div>
+      <div ref={personaSectionRef} style={S.sectionTitle}>Step 3 — Choose a Persona</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 10, marginBottom: 14 }}>
         {PERSONAS.map(p => (
           <div key={p.id} onClick={() => setSelectedPersona(p.id)}

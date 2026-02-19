@@ -389,23 +389,8 @@ export default function App() {
         ))}
       </div>
 
-      <div style={S.sectionTitle}>Step 2 — Choose a Persona</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 10, marginBottom: 14 }}>
-        {PERSONAS.map(p => (
-          <div key={p.id} onClick={() => setSelectedPersona(p.id)}
-            style={{ border: `2px solid ${selectedPersona === p.id ? p.color : "#2A2A30"}`, borderRadius: 12, padding: 13, cursor: "pointer", background: selectedPersona === p.id ? p.color + "10" : "#1A1A1F", transition: "all 0.2s", position: "relative" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 5 }}>
-              <span style={{ fontSize: 24 }}>{p.icon}</span>
-              <div><div style={{ fontWeight: 700, fontSize: 13.5 }}>{p.name}</div><Pill color={p.color}>{p.difficulty}</Pill></div>
-            </div>
-            <div style={{ fontSize: 12, color: "#888", lineHeight: 1.4 }}>{p.description}</div>
-            {selectedPersona === p.id && <div style={{ position: "absolute", top: 8, right: 10, width: 18, height: 18, borderRadius: "50%", background: p.color, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700 }}>✓</div>}
-          </div>
-        ))}
-      </div>
-
       {/* Config area */}
-      <div style={S.sectionTitle}>Step 3 — System Prompt {selectedBot === "external_api" ? "(External API)" : selectedBot !== "custom" ? "(editable)" : ""}</div>
+      <div style={S.sectionTitle}>Step 2 — System Prompt {selectedBot === "external_api" ? "(External API)" : selectedBot !== "custom" ? "(editable)" : ""}</div>
       {selectedBot === "external_api" ? (
         <div style={S.card}>
           <div style={S.sectionTitle}>External API Configuration</div>
@@ -436,6 +421,21 @@ export default function App() {
             placeholder={selectedBot === "custom" ? "Write your bot's system prompt here..." : ""} />
         </div>
       )}
+
+      <div style={S.sectionTitle}>Step 3 — Choose a Persona</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 10, marginBottom: 14 }}>
+        {PERSONAS.map(p => (
+          <div key={p.id} onClick={() => setSelectedPersona(p.id)}
+            style={{ border: `2px solid ${selectedPersona === p.id ? p.color : "#2A2A30"}`, borderRadius: 12, padding: 13, cursor: "pointer", background: selectedPersona === p.id ? p.color + "10" : "#1A1A1F", transition: "all 0.2s", position: "relative" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 5 }}>
+              <span style={{ fontSize: 24 }}>{p.icon}</span>
+              <div><div style={{ fontWeight: 700, fontSize: 13.5 }}>{p.name}</div><Pill color={p.color}>{p.difficulty}</Pill></div>
+            </div>
+            <div style={{ fontSize: 12, color: "#888", lineHeight: 1.4 }}>{p.description}</div>
+            {selectedPersona === p.id && <div style={{ position: "absolute", top: 8, right: 10, width: 18, height: 18, borderRadius: "50%", background: p.color, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700 }}>✓</div>}
+          </div>
+        ))}
+      </div>
 
       <div style={{ ...S.card, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>

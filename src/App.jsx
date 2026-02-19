@@ -128,7 +128,7 @@ RESPOND ONLY with valid JSON, no markdown, no backticks:
 //  API HELPERS — calls our secure proxy at /api/chat
 // ════════════════════════════════════════════════════════════════════
 async function callClaude(systemPrompt, messages, maxTokens = 1024) {
-  const maxRetries = 3;
+  const maxRetries = 5;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const resp = await fetch("/api/chat", {
       method: "POST",
@@ -138,7 +138,7 @@ async function callClaude(systemPrompt, messages, maxTokens = 1024) {
 
     if (resp.status === 429) {
       if (attempt < maxRetries) {
-        const wait = 3000 * Math.pow(2, attempt);
+        const wait = 10000 * Math.pow(2, attempt); // 10s, 20s, 40s, 80s, 160s
         await new Promise(r => setTimeout(r, wait));
         continue;
       }
@@ -320,7 +320,7 @@ export default function App() {
         syntheticHistory.push({ role: "user", content: botReply });
         transcript.push({ role: "assistant", speaker: botName, text: botReply });
         setMessages(prev => [...prev, { role: "assistant", speaker: botName, icon: "🤖", text: botReply }]);
-        await new Promise(r => setTimeout(r, 1500)); // Pause between turns to avoid rate limits
+        await new Promise(r => setTimeout(r, 3000)); // Pause between turns to avoid rate limits
       }
 
       setConvDone(true);

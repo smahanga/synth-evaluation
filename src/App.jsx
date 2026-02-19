@@ -374,23 +374,8 @@ export default function App() {
       </div>
 
       {/* Build Your Test */}
-      <div style={S.sectionTitle}>Step 1 — Choose a Persona</div>
+      <div style={S.sectionTitle}>Step 1 — Choose a Bot to Test</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 10, marginBottom: 20 }}>
-        {PERSONAS.map(p => (
-          <div key={p.id} onClick={() => setSelectedPersona(p.id)}
-            style={{ border: `2px solid ${selectedPersona === p.id ? p.color : "#2A2A30"}`, borderRadius: 12, padding: 13, cursor: "pointer", background: selectedPersona === p.id ? p.color + "10" : "#1A1A1F", transition: "all 0.2s", position: "relative" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 5 }}>
-              <span style={{ fontSize: 24 }}>{p.icon}</span>
-              <div><div style={{ fontWeight: 700, fontSize: 13.5 }}>{p.name}</div><Pill color={p.color}>{p.difficulty}</Pill></div>
-            </div>
-            <div style={{ fontSize: 12, color: "#888", lineHeight: 1.4 }}>{p.description}</div>
-            {selectedPersona === p.id && <div style={{ position: "absolute", top: 8, right: 10, width: 18, height: 18, borderRadius: "50%", background: p.color, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700 }}>✓</div>}
-          </div>
-        ))}
-      </div>
-
-      <div style={S.sectionTitle}>Step 2 — Choose a Bot to Test</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 10, marginBottom: 14 }}>
         {TARGET_BOTS.map(b => (
           <div key={b.id} onClick={() => { setSelectedBot(b.id); if (b.prompt) setTargetPrompt(b.prompt); else if (b.id === "custom") setTargetPrompt(""); }}
             style={{ border: `2px solid ${selectedBot === b.id ? "#F39C12" : "#2A2A30"}`, borderRadius: 12, padding: 13, cursor: "pointer", background: selectedBot === b.id ? "#F39C1210" : "#1A1A1F", transition: "all 0.2s", position: "relative" }}>
@@ -400,6 +385,21 @@ export default function App() {
             </div>
             <div style={{ fontSize: 12, color: "#888", lineHeight: 1.4 }}>{b.description}</div>
             {selectedBot === b.id && <div style={{ position: "absolute", top: 8, right: 10, width: 18, height: 18, borderRadius: "50%", background: "#F39C12", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700 }}>✓</div>}
+          </div>
+        ))}
+      </div>
+
+      <div style={S.sectionTitle}>Step 2 — Choose a Persona</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 10, marginBottom: 14 }}>
+        {PERSONAS.map(p => (
+          <div key={p.id} onClick={() => setSelectedPersona(p.id)}
+            style={{ border: `2px solid ${selectedPersona === p.id ? p.color : "#2A2A30"}`, borderRadius: 12, padding: 13, cursor: "pointer", background: selectedPersona === p.id ? p.color + "10" : "#1A1A1F", transition: "all 0.2s", position: "relative" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 5 }}>
+              <span style={{ fontSize: 24 }}>{p.icon}</span>
+              <div><div style={{ fontWeight: 700, fontSize: 13.5 }}>{p.name}</div><Pill color={p.color}>{p.difficulty}</Pill></div>
+            </div>
+            <div style={{ fontSize: 12, color: "#888", lineHeight: 1.4 }}>{p.description}</div>
+            {selectedPersona === p.id && <div style={{ position: "absolute", top: 8, right: 10, width: 18, height: 18, borderRadius: "50%", background: p.color, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700 }}>✓</div>}
           </div>
         ))}
       </div>
@@ -451,7 +451,7 @@ export default function App() {
           return (<>
             <button style={{ ...S.btn(true), opacity: canRun ? 1 : 0.4, padding: "13px 44px", fontSize: 15 }}
               disabled={!canRun} onClick={runSimulation}>🚀&nbsp; Run Stress Test</button>
-            {!canRun && <div style={{ fontSize: 12, color: "#555", marginTop: 6 }}>{!selectedPersona ? "Select a persona above to begin" : "Configure the target bot"}</div>}
+            {!canRun && <div style={{ fontSize: 12, color: "#555", marginTop: 6 }}>{!selectedPersona ? "Select a persona above to begin" : "Configure the bot's system prompt"}</div>}
           </>);
         })()}
       </div>

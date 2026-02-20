@@ -156,10 +156,11 @@ async function callClaude(systemPrompt, messages, maxTokens = 1024) {
 
 async function callExternalApi(apiUrl, userMessage, history, username, password) {
   // Route through /api/chat proxy to avoid CORS issues
+  // Send in OpenAI-compatible format (widely supported by bots)
   const externalBody = {
-    contents: [
-      ...history.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
-      { role: "user", parts: [{ text: userMessage }] }
+    messages: [
+      ...history.map(m => ({ role: m.role, content: m.content })),
+      { role: "user", content: userMessage }
     ]
   };
   const payload = { externalUrl: apiUrl, externalBody };
@@ -176,7 +177,10 @@ async function callExternalApi(apiUrl, userMessage, history, username, password)
     throw new Error(err.error || `External API Error ${resp.status}`);
   }
   const data = await resp.json();
-  return data.content.map(b => b.type === "text" ? b.text : "").filter(Boolean).join("\n");
+  // Handle various response shapes from the proxy
+  const text = data.content?.map?.(b => b.type === "text" ? b.text : "").filter(Boolean).join("\n")
+    || data.reply || data.response || data.message || "";
+  return text;
 }
 
 // ════════════════════════════════════════════════════════════════════

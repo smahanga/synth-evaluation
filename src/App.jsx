@@ -156,20 +156,35 @@ async function callClaude(systemPrompt, messages, maxTokens = 1024) {
 
 async function callExternalApi(apiUrl, apiKey, apiFormat, userMessage, history) {
   const headers = { "Content-Type": "application/json" };
-  if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
+  if (apiKey && apiFormat !== "gemini") headers["Authorization"] = `Bearer ${apiKey}`;
+
+  let finalUrl = apiUrl;
   let body;
   if (apiFormat === "openai") {
     body = JSON.stringify({ model: "gpt-4", messages: [...history.map(m => ({ role: m.role, content: m.content })), { role: "user", content: userMessage }] });
   } else if (apiFormat === "anthropic") {
     body = JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1024, messages: [...history.map(m => ({ role: m.role, content: m.content })), { role: "user", content: userMessage }] });
+  } else if (apiFormat === "gemini") {
+    if (apiKey && !apiUrl.includes("key=")) {
+      const glue = apiUrl.includes("?") ? "&" : "?";
+      finalUrl = `${apiUrl}${glue}key=${encodeURIComponent(apiKey)}`;
+    }
+    body = JSON.stringify({
+      contents: [
+        ...history.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
+        { role: "user", parts: [{ text: userMessage }] }
+      ]
+    });
   } else {
     body = JSON.stringify({ message: userMessage, history });
   }
-  const resp = await fetch(apiUrl, { method: "POST", headers, body });
+
+  const resp = await fetch(finalUrl, { method: "POST", headers, body });
   if (!resp.ok) throw new Error(`External API Error ${resp.status}: ${await resp.text()}`);
   const data = await resp.json();
   if (apiFormat === "openai") return data.choices?.[0]?.message?.content || JSON.stringify(data);
   if (apiFormat === "anthropic") return data.content?.map(b => b.text || "").join("\n") || JSON.stringify(data);
+  if (apiFormat === "gemini") return data.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("\n") || JSON.stringify(data);
   return data.reply || data.response || data.message || data.text || data.content || data.output || JSON.stringify(data);
 }
 
@@ -251,8 +266,8 @@ const S = {
 export default function App() {
   const [view, setView] = useState("home");
   const [selectedPersona, setSelectedPersona] = useState(null);
-  const [selectedBot, setSelectedBot] = useState("techflow_support");
-  const [targetPrompt, setTargetPrompt] = useState(TARGET_BOTS[0].prompt);
+  const [selectedBot, setSelectedBot] = useState(null);
+  const [targetPrompt, setTargetPrompt] = useState("");
   const [apiUrl, setApiUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [apiFormat, setApiFormat] = useState("openai");
@@ -263,6 +278,7 @@ export default function App() {
   const [error, setError] = useState(null);
   const [convDone, setConvDone] = useState(false);
   const scrollRef = useRef(null);
+  const personaSectionRef = useRef(null);
   const abortRef = useRef(false);
 
   useEffect(() => {
@@ -271,8 +287,8 @@ export default function App() {
 
   const resetAll = () => {
     abortRef.current = true;
-    setView("home"); setSelectedPersona(null); setSelectedBot("techflow_support");
-    setTargetPrompt(TARGET_BOTS[0].prompt); setMaxTurns(4); setMessages([]);
+    setView("home"); setSelectedPersona(null); setSelectedBot(null);
+    setTargetPrompt(""); setMaxTurns(4); setMessages([]);
     setStatus(""); setEvaluation(null); setError(null); setConvDone(false);
     setApiUrl(""); setApiKey(""); setApiFormat("openai");
   };
@@ -374,10 +390,17 @@ export default function App() {
       </div>
 
       {/* Build Your Test */}
-      <div style={S.sectionTitle}>Step 1 — Choose a Bot to Test</div>
+      <div style={{ ...S.sectionTitle, color: "#F39C12", fontSize: 12 }}>Step 1 — Choose a Bot to Test 🛠️</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 10, marginBottom: 20 }}>
         {TARGET_BOTS.map(b => (
-          <div key={b.id} onClick={() => { setSelectedBot(b.id); if (b.prompt) setTargetPrompt(b.prompt); else if (b.id === "custom") setTargetPrompt(""); }}
+          <div key={b.id} onClick={() => {
+            setSelectedBot(b.id);
+            if (b.prompt) setTargetPrompt(b.prompt);
+            else if (b.id === "custom") setTargetPrompt("");
+            setTimeout(() => {
+              personaSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }, 50);
+          }}
             style={{ border: `2px solid ${selectedBot === b.id ? "#F39C12" : "#2A2A30"}`, borderRadius: 12, padding: 13, cursor: "pointer", background: selectedBot === b.id ? "#F39C1210" : "#1A1A1F", transition: "all 0.2s", position: "relative" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 5 }}>
               <span style={{ fontSize: 22 }}>{b.icon}</span>
@@ -399,20 +422,21 @@ export default function App() {
             <input type="text" value={apiUrl} onChange={e => setApiUrl(e.target.value)} placeholder="https://my-chatbot.com/api/chat"
               style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #333", background: "#131316", color: "#ddd", fontFamily: "'JetBrains Mono'", fontSize: 12, outline: "none", boxSizing: "border-box" }} />
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "#888", display: "block", marginBottom: 4 }}>API Key (optional)</label>
-              <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="sk-..."
-                style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #333", background: "#131316", color: "#ddd", fontFamily: "'JetBrains Mono'", fontSize: 12, outline: "none", boxSizing: "border-box" }} />
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "#888", display: "block", marginBottom: 4 }}>API Key (optional)</label>
+            <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="For Gemini, use your Gemini API key"
+              style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #333", background: "#131316", color: "#ddd", fontFamily: "'JetBrains Mono'", fontSize: 12, outline: "none", boxSizing: "border-box" }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "#888", display: "block", marginBottom: 4 }}>Format</label>
+            <div style={{ display: "flex", gap: 4 }}>
+              {[{id:"openai",l:"OpenAI"},{id:"anthropic",l:"Anthropic"},{id:"gemini",l:"Gemini"},{id:"simple",l:"Simple"}].map(f => (
+                <button key={f.id} onClick={() => setApiFormat(f.id)} style={{ flex:1, padding:"9px 4px", borderRadius:8, border:`1px solid ${apiFormat===f.id?"#F39C12":"#333"}`, background:apiFormat===f.id?"#F39C1215":"transparent", fontFamily:"'Space Grotesk'", fontSize:11, fontWeight:600, cursor:"pointer", color:apiFormat===f.id?"#F39C12":"#888" }}>{f.l}</button>
+              ))}
             </div>
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "#888", display: "block", marginBottom: 4 }}>Format</label>
-              <div style={{ display: "flex", gap: 4 }}>
-                {[{id:"openai",l:"OpenAI"},{id:"anthropic",l:"Anthropic"},{id:"simple",l:"Simple"}].map(f => (
-                  <button key={f.id} onClick={() => setApiFormat(f.id)} style={{ flex:1, padding:"9px 4px", borderRadius:8, border:`1px solid ${apiFormat===f.id?"#F39C12":"#333"}`, background:apiFormat===f.id?"#F39C1215":"transparent", fontFamily:"'Space Grotesk'", fontSize:11, fontWeight:600, cursor:"pointer", color:apiFormat===f.id?"#F39C12":"#888" }}>{f.l}</button>
-                ))}
-              </div>
-            </div>
+          </div>
+          <div style={{ marginTop: 8, fontSize: 11, color: "#666" }}>
+            Tip: Gemini keys do not work with Anthropic format. Select Gemini format and use a Gemini endpoint.
           </div>
         </div>
       ) : (
@@ -422,7 +446,7 @@ export default function App() {
         </div>
       )}
 
-      <div style={S.sectionTitle}>Step 3 — Choose a Persona</div>
+      <div ref={personaSectionRef} style={S.sectionTitle}>Step 3 — Choose a Persona</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 10, marginBottom: 14 }}>
         {PERSONAS.map(p => (
           <div key={p.id} onClick={() => setSelectedPersona(p.id)}

@@ -156,19 +156,35 @@ async function callClaude(systemPrompt, messages, maxTokens = 1024) {
 
 async function callExternalApi(apiUrl, apiFormat, userMessage, history) {
   const headers = { "Content-Type": "application/json" };
+  if (apiKey && apiFormat !== "gemini") headers["Authorization"] = `Bearer ${apiKey}`;
+
+  let finalUrl = apiUrl;
   let body;
   if (apiFormat === "openai") {
     body = JSON.stringify({ model: "gpt-4", messages: [...history.map(m => ({ role: m.role, content: m.content })), { role: "user", content: userMessage }] });
   } else if (apiFormat === "anthropic") {
     body = JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1024, messages: [...history.map(m => ({ role: m.role, content: m.content })), { role: "user", content: userMessage }] });
+  } else if (apiFormat === "gemini") {
+    if (apiKey && !apiUrl.includes("key=")) {
+      const glue = apiUrl.includes("?") ? "&" : "?";
+      finalUrl = `${apiUrl}${glue}key=${encodeURIComponent(apiKey)}`;
+    }
+    body = JSON.stringify({
+      contents: [
+        ...history.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
+        { role: "user", parts: [{ text: userMessage }] }
+      ]
+    });
   } else {
     body = JSON.stringify({ message: userMessage, history });
   }
-  const resp = await fetch(apiUrl, { method: "POST", headers, body });
+
+  const resp = await fetch(finalUrl, { method: "POST", headers, body });
   if (!resp.ok) throw new Error(`External API Error ${resp.status}: ${await resp.text()}`);
   const data = await resp.json();
   if (apiFormat === "openai") return data.choices?.[0]?.message?.content || JSON.stringify(data);
   if (apiFormat === "anthropic") return data.content?.map(b => b.text || "").join("\n") || JSON.stringify(data);
+  if (apiFormat === "gemini") return data.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("\n") || JSON.stringify(data);
   return data.reply || data.response || data.message || data.text || data.content || data.output || JSON.stringify(data);
 }
 
@@ -405,6 +421,15 @@ export default function App() {
             <input type="text" value={apiUrl} onChange={e => setApiUrl(e.target.value)} placeholder="https://my-chatbot.com/api/chat"
               style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #333", background: "#131316", color: "#ddd", fontFamily: "'JetBrains Mono'", fontSize: 12, outline: "none", boxSizing: "border-box" }} />
           </div>
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "#888", display: "block", marginBottom: 4 }}>API Key (optional)</label>
+            <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="For Gemini, use your Gemini API key"
+              style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #333", background: "#131316", color: "#ddd", fontFamily: "'JetBrains Mono'", fontSize: 12, outline: "none", boxSizing: "border-box" }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "#888", display: "block", marginBottom: 4 }}>Format</label>
+            <div style={{ display: "flex", gap: 4 }}>
+              {[{id:"openai",l:"OpenAI"},{id:"anthropic",l:"Anthropic"},{id:"gemini",l:"Gemini"},{id:"simple",l:"Simple"}].map(f => (
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: "#888", display: "block", marginBottom: 4 }}>Format</label>
             <div style={{ display: "flex", gap: 4 }}>
@@ -412,6 +437,9 @@ export default function App() {
                 <button key={f.id} onClick={() => setApiFormat(f.id)} style={{ flex:1, padding:"9px 4px", borderRadius:8, border:`1px solid ${apiFormat===f.id?"#F39C12":"#333"}`, background:apiFormat===f.id?"#F39C1215":"transparent", fontFamily:"'Space Grotesk'", fontSize:11, fontWeight:600, cursor:"pointer", color:apiFormat===f.id?"#F39C12":"#888" }}>{f.l}</button>
               ))}
             </div>
+          </div>
+          <div style={{ marginTop: 8, fontSize: 11, color: "#666" }}>
+            Tip: Gemini keys do not work with Anthropic format. Select Gemini format and use a Gemini endpoint.
           </div>
         </div>
       ) : (

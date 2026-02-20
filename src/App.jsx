@@ -157,13 +157,14 @@ async function callClaude(systemPrompt, messages, maxTokens = 1024) {
 const DEFAULT_GEMINI_API_KEY = (import.meta.env.VITE_GEMINI_API_KEY || "").trim();
 
 async function callExternalApi(apiUrl, userMessage, history) {
-  if (!DEFAULT_GEMINI_API_KEY) {
-    throw new Error("Missing Gemini API key. Set VITE_GEMINI_API_KEY in your environment.");
+  const hasKeyInUrl = /[?&]key=/.test(apiUrl);
+  if (!DEFAULT_GEMINI_API_KEY && !hasKeyInUrl) {
+    throw new Error("Missing Gemini API key. Either set VITE_GEMINI_API_KEY or include ?key=... in the endpoint URL.");
   }
 
   const headers = { "Content-Type": "application/json" };
   const glue = apiUrl.includes("?") ? "&" : "?";
-  const finalUrl = apiUrl.includes("key=") ? apiUrl : `${apiUrl}${glue}key=${encodeURIComponent(DEFAULT_GEMINI_API_KEY)}`;
+  const finalUrl = hasKeyInUrl ? apiUrl : `${apiUrl}${glue}key=${encodeURIComponent(DEFAULT_GEMINI_API_KEY)}`;
   const body = JSON.stringify({
     contents: [
       ...history.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),

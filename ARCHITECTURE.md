@@ -1,4 +1,4 @@
-# SynthEvaluation — System Architecture
+# GRAPE (GRill Agent Persona Eval) — System Architecture
 
 ## High-Level Architecture
 

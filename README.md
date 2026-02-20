@@ -1,4 +1,4 @@
-# 🧪 SynthEvaluation
+# 🍇 GRAPE — GRill Agent Persona Eval
 
 **An automated multi-agent evaluation framework that stress-tests AI chatbots using synthetic user personas.**
 
@@ -8,39 +8,39 @@ Built by Shraddha Mahangare · MSIS 549 Agentic AI Fair
 
 ## What This Does
 
-SynthEvaluation uses AI agents that pretend to be different types of users (confused grandma, angry customer, social engineer, etc.) and automatically tests chatbots by having full conversations with them. After the conversation, a separate AI evaluator grades the bot on clarity, helpfulness, empathy, safety, and adaptability.
+GRAPE uses AI agents that pretend to be different types of users (confused grandma, angry customer, social engineer, etc.) and automatically tests chatbots by having full conversations with them. After the conversation, a separate AI evaluator grades the bot on clarity, helpfulness, empathy, safety, and adaptability.
 
 ---
 
 ## 🚀 Deploy to Vercel (Step-by-Step for Beginners)
 
-### Step 1: Get an Anthropic API Key (Free)
+### Step 1: Get a Google Gemini API Key (Free)
 
-1. Go to [console.anthropic.com](https://console.anthropic.com)
-2. Click **Sign Up** (use your UW email)
-3. After signing in, go to **API Keys** in the left sidebar
-4. Click **Create Key**, name it "SynthEvaluation"
-5. **Copy the key** — it starts with `sk-ant-...` — save it somewhere safe!
+1. Go to [aistudio.google.com](https://aistudio.google.com)
+2. Sign in with your Google account
+3. Go to **API Keys** in the left sidebar
+4. Click **Create Key**, name it "GRAPE"
+5. **Copy the key** — save it somewhere safe!
 
-> 💡 Anthropic gives new accounts $5 in free credits, which is enough for ~100+ stress tests.
+> 💡 Gemini gives free tier access which is enough for many stress tests.
 
 ### Step 2: Push This Code to GitHub
 
 1. Go to [github.com](https://github.com) and sign in
 2. Click the **+** button → **New repository**
-3. Name it `synth-evaluation`, keep it **Public**, click **Create repository**
+3. Name it `grape-eval`, keep it **Public**, click **Create repository**
 4. Open your terminal/command prompt and run these commands:
 
 ```bash
 # Navigate to this project folder
-cd synth-evaluation
+cd grape-eval
 
 # Initialize git and push
 git init
 git add .
-git commit -m "Initial commit - SynthEvaluation"
+git commit -m "Initial commit - GRAPE"
 git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/synth-evaluation.git
+git remote add origin https://github.com/YOUR_USERNAME/grape-eval.git
 git push -u origin main
 ```
 
@@ -50,22 +50,20 @@ git push -u origin main
 
 1. Go to [vercel.com](https://vercel.com) and click **Sign Up** → sign in with GitHub
 2. Click **Add New Project**
-3. Find your `synth-evaluation` repo and click **Import**
+3. Find your repo and click **Import**
 4. **IMPORTANT — Add your API Key:**
    - Expand **Environment Variables**
-   - Name: `ANTHROPIC_API_KEY`
-   - Value: paste your `sk-ant-...` key from Step 1
+   - Name: `GOOGLE_API_KEY`
+   - Value: paste your Gemini API key from Step 1
    - Click **Add**
 5. Click **Deploy**
-6. Wait ~1 minute. Vercel will give you a URL like `synth-evaluation.vercel.app`
+6. Wait ~1 minute. Vercel will give you a URL
 
 **That's it! Your app is live.** 🎉
 
 ### Step 4: Share It
 
-Your app is now at: `https://synth-evaluation.vercel.app` (or similar)
-
-Share this URL with:
+Share your app URL with:
 - Your professor
 - Fair judges
 - Classmates who want to try it
@@ -79,24 +77,19 @@ Share this URL with:
 # Install dependencies
 npm install
 
-# Create a .env file for your API key
-echo "ANTHROPIC_API_KEY=sk-ant-your-key-here" > .env
+# Create a .env.local file for your API key
+echo "GOOGLE_API_KEY=your-key-here" > .env.local
 
 # Start the dev server
 npm run dev
 ```
-
-> Note: The local dev server requires a separate backend for the API proxy.
-> For local development, you can temporarily use the Anthropic API directly
-> by modifying the fetch URL in `src/App.jsx` from `/api/chat` to
-> `https://api.anthropic.com/v1/messages` and adding the API key header.
 
 ---
 
 ## 📁 Project Structure
 
 ```
-synth-evaluation/
+grape-eval/
 ├── api/
 │   └── chat.js              ← Serverless function (keeps API key secret)
 ├── src/
@@ -106,6 +99,7 @@ synth-evaluation/
 ├── package.json             ← Dependencies
 ├── vite.config.js           ← Build configuration
 ├── vercel.json              ← Vercel routing config
+├── ARCHITECTURE.md          ← System architecture diagram
 └── README.md                ← You are here!
 ```
 
@@ -141,7 +135,6 @@ Each stress test uses approximately:
 - ~2,000-4,000 tokens per conversation turn
 - ~1,500 tokens for evaluation
 - **Total per test: ~$0.02-0.05**
-- Your $5 free credit = **~100-250 tests**
 
 ---
 

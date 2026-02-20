@@ -362,8 +362,9 @@ export default function App() {
       <div style={{ textAlign: "center", padding: "40px 0 32px" }}>
         <div style={{ fontSize: 56, marginBottom: 12 }}>🧑‍💻</div>
         <h1 style={{ fontSize: 38, fontWeight: 700, letterSpacing: -1.5, marginBottom: 8, lineHeight: 1.1 }}>
-          Synth<span style={{ background: "linear-gradient(135deg, #F39C12, #E74C3C)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Evaluation</span>
+          <span style={{ background: "linear-gradient(135deg, #F39C12, #E74C3C)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>GRAPE</span>
         </h1>
+        <p style={{ color: "#aaa", fontSize: 13, marginBottom: 4, letterSpacing: 1.5, fontWeight: 500 }}>GRill Agent Persona Eval</p>
         <p style={{ color: "#888", fontSize: 16, maxWidth: 480, margin: "0 auto 8px", lineHeight: 1.6 }}>
           AI agents pretend to be real users — confused grandmas, angry customers, social engineers — and stress-test chatbots automatically.
         </p>
@@ -598,7 +599,7 @@ export default function App() {
       <div style={S.header}>
         <div style={S.logo}>
           <span style={{ fontSize: 22 }}>🧑‍💻</span>
-          <span>Synth<span style={{ background: "linear-gradient(135deg, #F39C12, #E74C3C)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Evaluation</span></span>
+          <span><span style={{ background: "linear-gradient(135deg, #F39C12, #E74C3C)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>GRAPE</span></span>
         </div>
         {view !== "home" && <button onClick={resetAll} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid #333", background: "transparent", color: "#888", fontFamily: "'Space Grotesk'", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>↻ Reset</button>}
       </div>

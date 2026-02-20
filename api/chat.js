@@ -11,13 +11,18 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { system, messages, externalUrl, externalBody } = req.body;
+    const { system, messages, externalUrl, externalBody, externalAuth } = req.body;
 
     // If an external URL is provided, proxy the request server-side (avoids browser CORS)
     if (externalUrl) {
+      const headers = { "Content-Type": "application/json" };
+      if (externalAuth?.username && externalAuth?.password) {
+        const creds = Buffer.from(`${externalAuth.username}:${externalAuth.password}`).toString("base64");
+        headers["Authorization"] = `Basic ${creds}`;
+      }
       const extResp = await fetch(externalUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(externalBody)
       });
       const extText = await extResp.text();

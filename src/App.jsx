@@ -154,7 +154,7 @@ async function callClaude(systemPrompt, messages, maxTokens = 1024) {
   }
 }
 
-async function callExternalApi(apiUrl, userMessage, history) {
+async function callExternalApi(apiUrl, userMessage, history, username, password) {
   // Route through /api/chat proxy to avoid CORS issues
   const externalBody = {
     contents: [
@@ -162,10 +162,14 @@ async function callExternalApi(apiUrl, userMessage, history) {
       { role: "user", parts: [{ text: userMessage }] }
     ]
   };
+  const payload = { externalUrl: apiUrl, externalBody };
+  if (username && password) {
+    payload.externalAuth = { username, password };
+  }
   const resp = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ externalUrl: apiUrl, externalBody })
+    body: JSON.stringify(payload)
   });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
@@ -256,6 +260,8 @@ export default function App() {
   const [selectedBot, setSelectedBot] = useState(null);
   const [targetPrompt, setTargetPrompt] = useState("");
   const [apiUrl, setApiUrl] = useState("");
+  const [apiUsername, setApiUsername] = useState("");
+  const [apiPassword, setApiPassword] = useState("");
   const [maxTurns, setMaxTurns] = useState(4);
   const [messages, setMessages] = useState([]);
   const [status, setStatus] = useState("");
@@ -313,7 +319,7 @@ export default function App() {
 
         let botReply;
         if (selectedBot === "external_api" && apiUrl.trim()) {
-          botReply = await callExternalApi(apiUrl, userMsg, targetHistory.slice(0, -1));
+          botReply = await callExternalApi(apiUrl, userMsg, targetHistory.slice(0, -1), apiUsername, apiPassword);
         } else {
           botReply = await callClaude(targetPrompt, targetHistory);
         }
@@ -341,7 +347,7 @@ export default function App() {
     } catch (err) {
       if (!abortRef.current) { setError(err.message); setStatus("Error occurred."); }
     }
-  }, [selectedPersona, selectedBot, targetPrompt, maxTurns, apiUrl]);
+  }, [selectedPersona, selectedBot, targetPrompt, maxTurns, apiUrl, apiUsername, apiPassword]);
 
   // ════════════════════════════════════════════════════════════
   //  WELCOME / SETUP VIEW — Combined landing page
@@ -408,8 +414,20 @@ export default function App() {
             <input type="text" value={apiUrl} onChange={e => setApiUrl(e.target.value)} placeholder="https://my-chatbot.com/api/chat"
               style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #333", background: "#131316", color: "#ddd", fontFamily: "'JetBrains Mono'", fontSize: 12, outline: "none", boxSizing: "border-box" }} />
           </div>
+          <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "#888", display: "block", marginBottom: 4 }}>Username</label>
+              <input type="text" value={apiUsername} onChange={e => setApiUsername(e.target.value)} placeholder="(optional)"
+                style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #333", background: "#131316", color: "#ddd", fontFamily: "'JetBrains Mono'", fontSize: 12, outline: "none", boxSizing: "border-box" }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "#888", display: "block", marginBottom: 4 }}>Password</label>
+              <input type="password" value={apiPassword} onChange={e => setApiPassword(e.target.value)} placeholder="(optional)"
+                style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #333", background: "#131316", color: "#ddd", fontFamily: "'JetBrains Mono'", fontSize: 12, outline: "none", boxSizing: "border-box" }} />
+            </div>
+          </div>
           <div style={{ marginTop: 8, fontSize: 11, color: "#666" }}>
-            Uses Gemini format automatically with the default environment key (VITE_GEMINI_API_KEY).
+            If your API requires Basic Auth, enter the credentials above. Uses Gemini format by default.
           </div>
         </div>
       ) : (

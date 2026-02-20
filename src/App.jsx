@@ -372,9 +372,9 @@ export default function App() {
       {/* How it works — 3 steps */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 32 }}>
         {[
-          { step: "1", icon: "🎭", title: "Persona Simulates", desc: "An AI agent role-plays a specific user type with realistic quirks and frustrations." },
-          { step: "2", icon: "💬", title: "Bot Responds", desc: "Your chatbot handles the conversation. The agents talk back and forth autonomously." },
-          { step: "3", icon: "📊", title: "AI Evaluates", desc: "A separate AI judge grades the bot on clarity, safety, empathy, and more." }
+          { step: "1", icon: "🛠️", title: "Choose a Bot", desc: "Pick a built-in bot, write a custom prompt, or connect your own API endpoint." },
+          { step: "2", icon: "🎭", title: "Pick a Persona", desc: "Select a synthetic user — confused grandma, angry customer, social engineer, and more." },
+          { step: "3", icon: "📊", title: "AI Evaluates", desc: "The agents talk autonomously, then an AI judge grades on clarity, safety, empathy, and more." }
         ].map(s => (
           <div key={s.step} style={{ ...S.card, textAlign: "center", padding: "20px 16px" }}>
             <div style={{ fontSize: 28, marginBottom: 8 }}>{s.icon}</div>

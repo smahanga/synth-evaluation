@@ -20,11 +20,16 @@ export default async function handler(req, res) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(externalBody)
       });
+      const extText = await extResp.text();
       if (!extResp.ok) {
-        const errText = await extResp.text();
-        return res.status(extResp.status).json({ error: `External API Error ${extResp.status}: ${errText}` });
+        return res.status(extResp.status).json({ error: `External API Error ${extResp.status}: ${extText.slice(0, 500)}` });
       }
-      const extData = await extResp.json();
+      let extData;
+      try {
+        extData = JSON.parse(extText);
+      } catch {
+        return res.status(502).json({ error: `External API returned non-JSON response: ${extText.slice(0, 300)}` });
+      }
       // Try common response shapes, then fall back to raw JSON
       const reply = extData.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("\n")
         || extData.choices?.[0]?.message?.content
@@ -58,12 +63,18 @@ export default async function handler(req, res) {
       }
     );
 
+    const responseText = await response.text();
+
     if (!response.ok) {
-      const errText = await response.text();
-      return res.status(response.status).json({ error: `Gemini API Error: ${errText}` });
+      return res.status(response.status).json({ error: `Gemini API Error ${response.status}: ${responseText.slice(0, 500)}` });
     }
 
-    const data = await response.json();
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      return res.status(502).json({ error: `Gemini returned non-JSON response: ${responseText.slice(0, 300)}` });
+    }
     const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated.";
 
     // Return in Anthropic-compatible format so the frontend works without changes

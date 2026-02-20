@@ -360,7 +360,7 @@ export default function App() {
     <div style={S.container}>
       {/* Hero */}
       <div style={{ textAlign: "center", padding: "40px 0 32px" }}>
-        <div style={{ fontSize: 56, marginBottom: 12 }}>🧪</div>
+        <div style={{ fontSize: 56, marginBottom: 12 }}>🧑‍💻</div>
         <h1 style={{ fontSize: 38, fontWeight: 700, letterSpacing: -1.5, marginBottom: 8, lineHeight: 1.1 }}>
           Synth<span style={{ background: "linear-gradient(135deg, #F39C12, #E74C3C)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Evaluation</span>
         </h1>
@@ -597,7 +597,7 @@ export default function App() {
       <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
       <div style={S.header}>
         <div style={S.logo}>
-          <span style={{ fontSize: 22 }}>🧪</span>
+          <span style={{ fontSize: 22 }}>🧑‍💻</span>
           <span>Synth<span style={{ background: "linear-gradient(135deg, #F39C12, #E74C3C)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Evaluation</span></span>
         </div>
         {view !== "home" && <button onClick={resetAll} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid #333", background: "transparent", color: "#888", fontFamily: "'Space Grotesk'", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>↻ Reset</button>}

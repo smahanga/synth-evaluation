@@ -154,28 +154,25 @@ async function callClaude(systemPrompt, messages, maxTokens = 1024) {
   }
 }
 
-const DEFAULT_GEMINI_API_KEY = (import.meta.env.VITE_GEMINI_API_KEY || "").trim();
-
 async function callExternalApi(apiUrl, userMessage, history) {
-  const hasKeyInUrl = /[?&]key=/.test(apiUrl);
-  if (!DEFAULT_GEMINI_API_KEY && !hasKeyInUrl) {
-    throw new Error("Missing Gemini API key. Either set VITE_GEMINI_API_KEY or include ?key=... in the endpoint URL.");
-  }
-
-  const headers = { "Content-Type": "application/json" };
-  const glue = apiUrl.includes("?") ? "&" : "?";
-  const finalUrl = hasKeyInUrl ? apiUrl : `${apiUrl}${glue}key=${encodeURIComponent(DEFAULT_GEMINI_API_KEY)}`;
-  const body = JSON.stringify({
+  // Route through /api/chat proxy to avoid CORS issues
+  const externalBody = {
     contents: [
       ...history.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
       { role: "user", parts: [{ text: userMessage }] }
     ]
+  };
+  const resp = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ externalUrl: apiUrl, externalBody })
   });
-
-  const resp = await fetch(finalUrl, { method: "POST", headers, body });
-  if (!resp.ok) throw new Error(`External API Error ${resp.status}: ${await resp.text()}`);
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
+    throw new Error(err.error || `External API Error ${resp.status}`);
+  }
   const data = await resp.json();
-  return data.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("\n") || JSON.stringify(data);
+  return data.content.map(b => b.type === "text" ? b.text : "").filter(Boolean).join("\n");
 }
 
 // ════════════════════════════════════════════════════════════════════

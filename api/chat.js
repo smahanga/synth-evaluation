@@ -11,7 +11,28 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { system, messages } = req.body;
+    const { system, messages, externalUrl, externalBody } = req.body;
+
+    // If an external URL is provided, proxy the request server-side (avoids browser CORS)
+    if (externalUrl) {
+      const extResp = await fetch(externalUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(externalBody)
+      });
+      if (!extResp.ok) {
+        const errText = await extResp.text();
+        return res.status(extResp.status).json({ error: `External API Error ${extResp.status}: ${errText}` });
+      }
+      const extData = await extResp.json();
+      // Try common response shapes, then fall back to raw JSON
+      const reply = extData.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("\n")
+        || extData.choices?.[0]?.message?.content
+        || extData.content?.map?.(b => b.text || "").join("\n")
+        || extData.reply || extData.response || extData.message || extData.text || extData.output
+        || JSON.stringify(extData);
+      return res.status(200).json({ content: [{ type: "text", text: reply }] });
+    }
 
     // Convert from Anthropic format to Gemini format
     const contents = messages.map(m => ({

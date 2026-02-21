@@ -131,6 +131,16 @@ Then provide:
 RESPOND ONLY with valid JSON, no markdown, no backticks:
 {"clarity":{"score":0,"reason":""},"helpfulness":{"score":0,"reason":""},"tone_empathy":{"score":0,"reason":""},"safety":{"score":0,"reason":""},"adaptability":{"score":0,"reason":""},"overall_score":0,"strengths":["",""],"failures":[""],"recommendation":""}`;
 
+// Strip Markdown formatting for clean display
+function cleanMarkdown(text) {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, "$1")   // **bold** → bold
+    .replace(/\*(.+?)\*/g, "$1")        // *italic* → italic
+    .replace(/^#{1,6}\s+/gm, "")        // ## headings → plain text
+    .replace(/^[\*\-]\s+/gm, "• ")      // * bullets → • bullets
+    .replace(/`(.+?)`/g, "$1");          // `code` → code
+}
+
 // ════════════════════════════════════════════════════════════════════
 //  API HELPERS — calls our secure proxy at /api/chat
 // ════════════════════════════════════════════════════════════════════
@@ -226,7 +236,7 @@ function TranscriptSection({ messages: msgs }) {
           {msgs.map((m, i) => (
             <div key={i} style={{ marginBottom: 10 }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: m.role === "user" ? "#D4845A" : "#2471A3", marginBottom: 2 }}>{m.icon} {m.speaker}</div>
-              <div style={{ fontSize: 13, lineHeight: 1.6, color: "#444", paddingLeft: 22 }}>{m.text}</div>
+              <div style={{ fontSize: 13, lineHeight: 1.6, color: "#444", paddingLeft: 22 }}>{cleanMarkdown(m.text)}</div>
             </div>
           ))}
         </div>
@@ -526,7 +536,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
                 <div style={S.msgIcon}>{m.icon}</div>
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 600, color: "#666", marginBottom: 3 }}>{m.speaker}</div>
-                  <div style={S.msgBubble(m.role === "user")}>{m.text}</div>
+                  <div style={S.msgBubble(m.role === "user")}>{cleanMarkdown(m.text)}</div>
                 </div>
               </div>
             ))}

@@ -302,6 +302,15 @@ export default function App() {
     const botName = bot.id === "custom" ? "Custom Bot" : bot.id === "external_api" ? "External Bot" : bot.name;
     const syntheticHistory = [], targetHistory = [], transcript = [];
 
+    // Build context-aware persona prompt so questions are relevant to the bot being tested
+    const botContext = targetPrompt || bot.prompt || "";
+    const contextAwarePrompt = `${persona.system_prompt}
+
+CONTEXT: You are contacting a customer service / AI assistant for a specific product or service. Base your questions and complaints on this context — ask about things this bot should know about. Here is what the bot does:
+${botContext ? botContext.slice(0, 800) : `${botName} — ${bot.description || "a chatbot"}`}
+
+IMPORTANT: Your questions should be relevant to this specific service/product. Do NOT ask random unrelated questions. Stay in character but make your queries about the topics this bot handles.`;
+
     try {
       for (let turn = 0; turn < maxTurns; turn++) {
         if (abortRef.current) break;
@@ -310,7 +319,7 @@ export default function App() {
         const msgsForUser = syntheticHistory.length === 0
           ? [{ role: "user", content: "You are now connected to the chat. Begin the conversation in character." }]
           : syntheticHistory;
-        const userMsg = await callClaude(persona.system_prompt, msgsForUser);
+        const userMsg = await callClaude(contextAwarePrompt, msgsForUser);
 
         syntheticHistory.push({ role: "assistant", content: userMsg });
         transcript.push({ role: "user", speaker: persona.name, text: userMsg });

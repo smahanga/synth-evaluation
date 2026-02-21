@@ -133,12 +133,14 @@ RESPOND ONLY with valid JSON, no markdown, no backticks:
 
 // Strip Markdown formatting for clean display
 function cleanMarkdown(text) {
+  if (!text) return text;
   return text
-    .replace(/\*\*(.+?)\*\*/g, "$1")   // **bold** → bold
-    .replace(/\*(.+?)\*/g, "$1")        // *italic* → italic
+    .replace(/\*\*([^*]+)\*\*/g, "$1")  // **bold** → bold
+    .replace(/\*([^*]+)\*/g, "$1")       // *italic* → italic
     .replace(/^#{1,6}\s+/gm, "")        // ## headings → plain text
-    .replace(/^[\*\-]\s+/gm, "• ")      // * bullets → • bullets
-    .replace(/`(.+?)`/g, "$1");          // `code` → code
+    .replace(/^[\*\-•]\s+/gm, "• ")     // * bullets → • bullets
+    .replace(/```[\s\S]*?```/g, "")      // ```code blocks``` → remove
+    .replace(/`([^`]+)`/g, "$1");        // `code` → code
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -348,10 +350,11 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
         targetHistory.push({ role: "user", content: userMsg });
 
         let botReply;
+        const botPromptClean = targetPrompt + "\n\nIMPORTANT: Respond in plain text only. Do NOT use Markdown formatting (no **, no *, no #, no bullet symbols, no backticks). Use natural conversational language.";
         if (selectedBot === "external_api" && apiUrl.trim()) {
           botReply = await callExternalApi(apiUrl, userMsg, targetHistory.slice(0, -1), apiUsername, apiPassword);
         } else {
-          botReply = await callClaude(targetPrompt, targetHistory);
+          botReply = await callClaude(botPromptClean, targetHistory);
         }
 
         targetHistory.push({ role: "assistant", content: botReply });

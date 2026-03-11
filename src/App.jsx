@@ -145,14 +145,15 @@ function cleanMarkdown(text) {
 
 // ════════════════════════════════════════════════════════════════════
 //  API HELPERS — calls our secure proxy at /api/chat
+//  engine: "claude" for testing agents, "gemini" for evaluation
 // ════════════════════════════════════════════════════════════════════
-async function callClaude(systemPrompt, messages, maxTokens = 1024) {
+async function callLLM(systemPrompt, messages, { engine = "claude", maxTokens = 1024 } = {}) {
   const maxRetries = 5;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const resp = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ system: systemPrompt, messages, max_tokens: maxTokens })
+      body: JSON.stringify({ system: systemPrompt, messages, max_tokens: maxTokens, engine })
     });
 
     if (resp.status === 429) {
@@ -338,7 +339,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
         const msgsForUser = syntheticHistory.length === 0
           ? [{ role: "user", content: "You are now connected to the chat. Begin the conversation in character." }]
           : syntheticHistory;
-        const userMsg = await callClaude(contextAwarePrompt, msgsForUser);
+        const userMsg = await callLLM(contextAwarePrompt, msgsForUser, { engine: "claude" });
 
         syntheticHistory.push({ role: "assistant", content: userMsg });
         transcript.push({ role: "user", speaker: persona.name, text: userMsg });
@@ -353,7 +354,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
         if (botId === "external_api" && extApiUrl?.trim()) {
           botReply = await callExternalApi(extApiUrl, userMsg, targetHistory.slice(0, -1), extUsername, extPassword);
         } else {
-          botReply = await callClaude(botPromptClean, targetHistory);
+          botReply = await callLLM(botPromptClean, targetHistory, { engine: "claude" });
         }
 
         targetHistory.push({ role: "assistant", content: botReply });
@@ -369,7 +370,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
       onUpdate({ status: "📊 Evaluating...", messages: agentMessages });
       const transcriptText = transcript.map(m => `[${m.speaker}]: ${m.text}`).join("\n\n");
       const evalInput = `PERSONA: ${persona.name} — ${persona.description}\n\nTRANSCRIPT:\n${transcriptText}`;
-      const evalRaw = await callClaude(EVALUATION_PROMPT, [{ role: "user", content: evalInput }]);
+      const evalRaw = await callLLM(EVALUATION_PROMPT, [{ role: "user", content: evalInput }], { engine: "gemini" });
 
       let evalData;
       try { evalData = JSON.parse(evalRaw.replace(/```json|```/g, "").trim()); }
@@ -384,7 +385,8 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
   }, []);
 
   // ──────────────────────────────────────────────────────────
-  //  COORDINATING AGENT — manages all 6 subagents sequentially
+  //  COORDINATING AGENT — invokes /api/orchestrate (Claude Code SDK
+  //  with CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS) to manage 6 subagents
   // ──────────────────────────────────────────────────────────
   const runAllPersonas = useCallback(async () => {
     abortRef.current = false;
@@ -393,30 +395,129 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
     setAgentResults(initialState);
     setView("running-all");
 
-    const config = {
-      botId: selectedBot,
-      prompt: targetPrompt,
-      turns: maxTurns,
-      extApiUrl: apiUrl,
-      extUsername: apiUsername,
-      extPassword: apiPassword,
-    };
+    const bot = TARGET_BOTS.find(b => b.id === selectedBot) || TARGET_BOTS[0];
+    const botName = bot.id === "custom" ? "Custom Bot" : bot.id === "external_api" ? "External Bot" : bot.name;
 
-    // Run personas sequentially to avoid rate limits
-    for (const persona of PERSONAS) {
-      if (abortRef.current) break;
-
-      setAgentResults(prev => ({ ...prev, [persona.id]: { ...prev[persona.id], status: "Running..." } }));
-
-      await runSinglePersonaAgent(persona.id, {
-        ...config,
-        onUpdate: (update) => {
-          setAgentResults(prev => ({ ...prev, [persona.id]: { ...prev[persona.id], ...update } }));
-        }
+    try {
+      // Call the orchestrator endpoint which spawns the coordinating agent
+      const resp = await fetch("/api/orchestrate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          botName,
+          botPrompt: targetPrompt || bot.prompt || "",
+          maxTurns
+        })
       });
 
-      // Pause between agents to avoid rate limits
-      if (!abortRef.current) await new Promise(r => setTimeout(r, 2000));
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
+        throw new Error(err.error || `Orchestrator Error ${resp.status}`);
+      }
+
+      // Read SSE stream from the coordinating agent
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        if (abortRef.current) break;
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || ""; // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const event = JSON.parse(line.slice(6));
+
+            if (event.type === "subagent_start") {
+              setAgentResults(prev => ({
+                ...prev,
+                [event.personaId]: { ...prev[event.personaId], status: `Running — ${PERSONAS.find(p => p.id === event.personaId)?.icon} testing...` }
+              }));
+            }
+
+            if (event.type === "subagent_complete" && event.result) {
+              const r = event.result;
+              setAgentResults(prev => ({
+                ...prev,
+                [event.personaId]: {
+                  status: "Complete",
+                  messages: (r.transcript || []).map(m => ({
+                    role: m.role,
+                    speaker: m.speaker,
+                    icon: m.role === "user" ? (PERSONAS.find(p => p.id === event.personaId)?.icon || "🎭") : "🤖",
+                    text: m.text
+                  })),
+                  evaluation: r.evaluation || null,
+                  error: null
+                }
+              }));
+            }
+
+            if (event.type === "error") {
+              throw new Error(event.message);
+            }
+
+            if (event.type === "done") {
+              // If we got a final aggregated result, use it to fill in any missing persona results
+              if (event.result?.results) {
+                setAgentResults(prev => {
+                  const updated = { ...prev };
+                  for (const [pid, data] of Object.entries(event.result.results)) {
+                    if (!updated[pid]?.evaluation && data?.evaluation) {
+                      updated[pid] = {
+                        status: "Complete",
+                        messages: (data.transcript || []).map(m => ({
+                          role: m.role, speaker: m.speaker,
+                          icon: m.role === "user" ? (PERSONAS.find(p => p.id === pid)?.icon || "🎭") : "🤖",
+                          text: m.text
+                        })),
+                        evaluation: data.evaluation,
+                        error: null
+                      };
+                    }
+                  }
+                  return updated;
+                });
+              }
+            }
+          } catch (e) {
+            if (e.message && !e.message.includes("JSON")) {
+              // Re-throw non-parse errors
+              throw e;
+            }
+          }
+        }
+      }
+    } catch (err) {
+      if (!abortRef.current) {
+        // Fallback: if orchestrator fails, run all 6 subagents in parallel via direct API calls
+        console.warn("Orchestrator failed, falling back to direct parallel mode:", err.message);
+        const config = {
+          botId: selectedBot, prompt: targetPrompt, turns: maxTurns,
+          extApiUrl: apiUrl, extUsername: apiUsername, extPassword: apiPassword,
+        };
+        // Mark all as running
+        setAgentResults(prev => {
+          const updated = { ...prev };
+          PERSONAS.forEach(p => { updated[p.id] = { ...updated[p.id], status: "Running..." }; });
+          return updated;
+        });
+        // Launch all 6 in parallel
+        await Promise.all(PERSONAS.map(persona =>
+          runSinglePersonaAgent(persona.id, {
+            ...config,
+            onUpdate: (update) => {
+              setAgentResults(prev => ({ ...prev, [persona.id]: { ...prev[persona.id], ...update } }));
+            }
+          })
+        ));
+      }
     }
 
     if (!abortRef.current) setView("results-all");
@@ -455,7 +556,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
         const msgsForUser = syntheticHistory.length === 0
           ? [{ role: "user", content: "You are now connected to the chat. Begin the conversation in character." }]
           : syntheticHistory;
-        const userMsg = await callClaude(contextAwarePrompt, msgsForUser);
+        const userMsg = await callLLM(contextAwarePrompt, msgsForUser, { engine: "claude" });
 
         syntheticHistory.push({ role: "assistant", content: userMsg });
         transcript.push({ role: "user", speaker: persona.name, text: userMsg });
@@ -471,7 +572,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
         if (selectedBot === "external_api" && apiUrl.trim()) {
           botReply = await callExternalApi(apiUrl, userMsg, targetHistory.slice(0, -1), apiUsername, apiPassword);
         } else {
-          botReply = await callClaude(botPromptClean, targetHistory);
+          botReply = await callLLM(botPromptClean, targetHistory, { engine: "claude" });
         }
 
         targetHistory.push({ role: "assistant", content: botReply });
@@ -487,7 +588,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
       setStatus("📊 Evaluation Agent is grading the conversation...");
       const transcriptText = transcript.map(m => `[${m.speaker}]: ${m.text}`).join("\n\n");
       const evalInput = `PERSONA: ${persona.name} — ${persona.description}\n\nTRANSCRIPT:\n${transcriptText}`;
-      const evalRaw = await callClaude(EVALUATION_PROMPT, [{ role: "user", content: evalInput }]);
+      const evalRaw = await callLLM(EVALUATION_PROMPT, [{ role: "user", content: evalInput }], { engine: "gemini" });
 
       let evalData;
       try { evalData = JSON.parse(evalRaw.replace(/```json|```/g, "").trim()); }

@@ -362,7 +362,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
         transcript.push({ role: "assistant", speaker: botName, text: botReply });
         agentMessages.push({ role: "assistant", speaker: botName, icon: "🤖", text: botReply });
         onUpdate({ status: `Turn ${turn+1}/${turns} — done`, messages: [...agentMessages] });
-        await new Promise(r => setTimeout(r, 3000));
+        await new Promise(r => setTimeout(r, 1000));
       }
 
       if (abortRef.current) { onUpdate({ status: "Cancelled", messages: agentMessages }); return null; }
@@ -395,130 +395,29 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
     setAgentResults(initialState);
     setView("running-all");
 
-    const bot = TARGET_BOTS.find(b => b.id === selectedBot) || TARGET_BOTS[0];
-    const botName = bot.id === "custom" ? "Custom Bot" : bot.id === "external_api" ? "External Bot" : bot.name;
+    const config = {
+      botId: selectedBot, prompt: targetPrompt, turns: maxTurns,
+      extApiUrl: apiUrl, extUsername: apiUsername, extPassword: apiPassword,
+    };
 
-    try {
-      // Call the orchestrator endpoint which spawns the coordinating agent
-      const resp = await fetch("/api/orchestrate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          botName,
-          botPrompt: targetPrompt || bot.prompt || "",
-          maxTurns
-        })
-      });
-
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
-        throw new Error(err.error || `Orchestrator Error ${resp.status}`);
-      }
-
-      // Read SSE stream from the coordinating agent
-      const reader = resp.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        if (abortRef.current) break;
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || ""; // Keep incomplete line in buffer
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const event = JSON.parse(line.slice(6));
-
-            if (event.type === "subagent_start") {
-              setAgentResults(prev => ({
-                ...prev,
-                [event.personaId]: { ...prev[event.personaId], status: `Running — ${PERSONAS.find(p => p.id === event.personaId)?.icon} testing...` }
-              }));
-            }
-
-            if (event.type === "subagent_complete" && event.result) {
-              const r = event.result;
-              setAgentResults(prev => ({
-                ...prev,
-                [event.personaId]: {
-                  status: "Complete",
-                  messages: (r.transcript || []).map(m => ({
-                    role: m.role,
-                    speaker: m.speaker,
-                    icon: m.role === "user" ? (PERSONAS.find(p => p.id === event.personaId)?.icon || "🎭") : "🤖",
-                    text: m.text
-                  })),
-                  evaluation: r.evaluation || null,
-                  error: null
-                }
-              }));
-            }
-
-            if (event.type === "error") {
-              throw new Error(event.message);
-            }
-
-            if (event.type === "done") {
-              // If we got a final aggregated result, use it to fill in any missing persona results
-              if (event.result?.results) {
-                setAgentResults(prev => {
-                  const updated = { ...prev };
-                  for (const [pid, data] of Object.entries(event.result.results)) {
-                    if (!updated[pid]?.evaluation && data?.evaluation) {
-                      updated[pid] = {
-                        status: "Complete",
-                        messages: (data.transcript || []).map(m => ({
-                          role: m.role, speaker: m.speaker,
-                          icon: m.role === "user" ? (PERSONAS.find(p => p.id === pid)?.icon || "🎭") : "🤖",
-                          text: m.text
-                        })),
-                        evaluation: data.evaluation,
-                        error: null
-                      };
-                    }
-                  }
-                  return updated;
-                });
-              }
-            }
-          } catch (e) {
-            if (e.message && !e.message.includes("JSON")) {
-              // Re-throw non-parse errors
-              throw e;
-            }
+    // Launch all 6 persona subagents in parallel with staggered starts
+    // Each persona gets a small offset (0-2.5s) to avoid slamming the API
+    await Promise.all(PERSONAS.map((persona, idx) =>
+      (async () => {
+        // Stagger starts: 500ms apart to avoid rate-limit spike
+        if (idx > 0) await new Promise(r => setTimeout(r, idx * 500));
+        setAgentResults(prev => ({
+          ...prev,
+          [persona.id]: { ...prev[persona.id], status: `Running — ${persona.icon} testing...` }
+        }));
+        await runSinglePersonaAgent(persona.id, {
+          ...config,
+          onUpdate: (update) => {
+            setAgentResults(prev => ({ ...prev, [persona.id]: { ...prev[persona.id], ...update } }));
           }
-        }
-      }
-    } catch (err) {
-      if (!abortRef.current) {
-        // Fallback: if orchestrator fails, run all 6 subagents in parallel via direct API calls
-        console.warn("Orchestrator failed, falling back to direct parallel mode:", err.message);
-        const config = {
-          botId: selectedBot, prompt: targetPrompt, turns: maxTurns,
-          extApiUrl: apiUrl, extUsername: apiUsername, extPassword: apiPassword,
-        };
-        // Mark all as running
-        setAgentResults(prev => {
-          const updated = { ...prev };
-          PERSONAS.forEach(p => { updated[p.id] = { ...updated[p.id], status: "Running..." }; });
-          return updated;
         });
-        // Launch all 6 in parallel
-        await Promise.all(PERSONAS.map(persona =>
-          runSinglePersonaAgent(persona.id, {
-            ...config,
-            onUpdate: (update) => {
-              setAgentResults(prev => ({ ...prev, [persona.id]: { ...prev[persona.id], ...update } }));
-            }
-          })
-        ));
-      }
-    }
+      })()
+    ));
 
     if (!abortRef.current) setView("results-all");
   }, [selectedBot, targetPrompt, maxTurns, apiUrl, apiUsername, apiPassword, runSinglePersonaAgent]);

@@ -1,5 +1,35 @@
 // GRAPE (GRill Agent Persona Eval) API Proxy — Uses Google Gemini Flash
 
+function isUrlAllowed(urlString) {
+  let parsed;
+  try { parsed = new URL(urlString); } catch { return false; }
+
+  if (parsed.protocol !== "https:") return false;
+
+  const hostname = parsed.hostname.toLowerCase();
+  if (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "0.0.0.0" ||
+    hostname === "[::1]" ||
+    hostname === "metadata.google.internal" ||
+    hostname === "169.254.169.254" ||
+    hostname.startsWith("10.") ||
+    hostname.startsWith("192.168.") ||
+    hostname.endsWith(".internal") ||
+    hostname.endsWith(".local")
+  ) return false;
+
+  // Block 172.16.0.0 - 172.31.255.255 (private range)
+  const parts = hostname.split(".");
+  if (parts[0] === "172") {
+    const second = parseInt(parts[1], 10);
+    if (second >= 16 && second <= 31) return false;
+  }
+
+  return true;
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -15,6 +45,9 @@ export default async function handler(req, res) {
 
     // If an external URL is provided, proxy the request server-side (avoids browser CORS)
     if (externalUrl) {
+      if (!isUrlAllowed(externalUrl)) {
+        return res.status(400).json({ error: "Invalid URL. Must be HTTPS and not point to internal/private network addresses." });
+      }
       const headers = { "Content-Type": "application/json" };
       if (externalAuth?.username && externalAuth?.password) {
         const creds = Buffer.from(`${externalAuth.username}:${externalAuth.password}`).toString("base64");

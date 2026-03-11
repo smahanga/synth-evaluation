@@ -296,6 +296,10 @@ export default function App() {
   const abortRef = useRef(false);
   const personaRef = useRef(null);
 
+  // Multi-persona (coordinating agent) state
+  const [agentResults, setAgentResults] = useState({}); // { personaId: { status, messages, evaluation, error } }
+  const [expandedPersona, setExpandedPersona] = useState(null);
+
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, status]);
@@ -305,14 +309,127 @@ export default function App() {
     setView("home"); setSelectedPersona(null); setSelectedBot(null);
     setTargetPrompt(""); setMaxTurns(4); setMessages([]);
     setStatus(""); setEvaluation(null); setError(null); setConvDone(false);
-    setApiUrl("");
+    setApiUrl(""); setAgentResults({}); setExpandedPersona(null);
   };
 
   // ──────────────────────────────────────────────────────────
-  //  SIMULATION LAYER
+  //  SINGLE PERSONA SUBAGENT — runs one persona simulation
+  // ──────────────────────────────────────────────────────────
+  const runSinglePersonaAgent = useCallback(async (personaId, { botId, prompt, turns, extApiUrl, extUsername, extPassword, onUpdate }) => {
+    const persona = PERSONAS.find(p => p.id === personaId);
+    const bot = TARGET_BOTS.find(b => b.id === botId) || TARGET_BOTS[0];
+    const botName = bot.id === "custom" ? "Custom Bot" : bot.id === "external_api" ? "External Bot" : bot.name;
+    const syntheticHistory = [], targetHistory = [], transcript = [];
+    const agentMessages = [];
+
+    const botContext = prompt || bot.prompt || "";
+    const contextAwarePrompt = `${persona.system_prompt}
+
+CONTEXT: You are contacting a customer service / AI assistant for a specific product or service. Base your questions and complaints on this context — ask about things this bot should know about. Here is what the bot does:
+${botContext ? botContext.slice(0, 800) : `${botName} — ${bot.description || "a chatbot"}`}
+
+IMPORTANT: Your questions should be relevant to this specific service/product. Do NOT ask random unrelated questions. Stay in character but make your queries about the topics this bot handles.`;
+
+    try {
+      for (let turn = 0; turn < turns; turn++) {
+        if (abortRef.current) break;
+
+        onUpdate({ status: `Turn ${turn+1}/${turns} — ${persona.icon} typing...`, messages: agentMessages });
+        const msgsForUser = syntheticHistory.length === 0
+          ? [{ role: "user", content: "You are now connected to the chat. Begin the conversation in character." }]
+          : syntheticHistory;
+        const userMsg = await callClaude(contextAwarePrompt, msgsForUser);
+
+        syntheticHistory.push({ role: "assistant", content: userMsg });
+        transcript.push({ role: "user", speaker: persona.name, text: userMsg });
+        agentMessages.push({ role: "user", speaker: persona.name, icon: persona.icon, text: userMsg });
+        onUpdate({ status: `Turn ${turn+1}/${turns} — 🤖 responding...`, messages: [...agentMessages] });
+
+        if (abortRef.current) break;
+
+        targetHistory.push({ role: "user", content: userMsg });
+        let botReply;
+        const botPromptClean = prompt + "\n\nIMPORTANT: Respond in plain text only. Do NOT use Markdown formatting (no **, no *, no #, no bullet symbols, no backticks). Use natural conversational language.";
+        if (botId === "external_api" && extApiUrl?.trim()) {
+          botReply = await callExternalApi(extApiUrl, userMsg, targetHistory.slice(0, -1), extUsername, extPassword);
+        } else {
+          botReply = await callClaude(botPromptClean, targetHistory);
+        }
+
+        targetHistory.push({ role: "assistant", content: botReply });
+        syntheticHistory.push({ role: "user", content: botReply });
+        transcript.push({ role: "assistant", speaker: botName, text: botReply });
+        agentMessages.push({ role: "assistant", speaker: botName, icon: "🤖", text: botReply });
+        onUpdate({ status: `Turn ${turn+1}/${turns} — done`, messages: [...agentMessages] });
+        await new Promise(r => setTimeout(r, 3000));
+      }
+
+      if (abortRef.current) { onUpdate({ status: "Cancelled", messages: agentMessages }); return null; }
+
+      onUpdate({ status: "📊 Evaluating...", messages: agentMessages });
+      const transcriptText = transcript.map(m => `[${m.speaker}]: ${m.text}`).join("\n\n");
+      const evalInput = `PERSONA: ${persona.name} — ${persona.description}\n\nTRANSCRIPT:\n${transcriptText}`;
+      const evalRaw = await callClaude(EVALUATION_PROMPT, [{ role: "user", content: evalInput }]);
+
+      let evalData;
+      try { evalData = JSON.parse(evalRaw.replace(/```json|```/g, "").trim()); }
+      catch { throw new Error("Evaluation returned invalid format."); }
+
+      onUpdate({ status: "Complete", messages: agentMessages, evaluation: evalData });
+      return evalData;
+    } catch (err) {
+      onUpdate({ status: "Error", messages: agentMessages, error: err.message });
+      return null;
+    }
+  }, []);
+
+  // ──────────────────────────────────────────────────────────
+  //  COORDINATING AGENT — manages all 6 subagents sequentially
+  // ──────────────────────────────────────────────────────────
+  const runAllPersonas = useCallback(async () => {
+    abortRef.current = false;
+    const initialState = {};
+    PERSONAS.forEach(p => { initialState[p.id] = { status: "Queued", messages: [], evaluation: null, error: null }; });
+    setAgentResults(initialState);
+    setView("running-all");
+
+    const config = {
+      botId: selectedBot,
+      prompt: targetPrompt,
+      turns: maxTurns,
+      extApiUrl: apiUrl,
+      extUsername: apiUsername,
+      extPassword: apiPassword,
+    };
+
+    // Run personas sequentially to avoid rate limits
+    for (const persona of PERSONAS) {
+      if (abortRef.current) break;
+
+      setAgentResults(prev => ({ ...prev, [persona.id]: { ...prev[persona.id], status: "Running..." } }));
+
+      await runSinglePersonaAgent(persona.id, {
+        ...config,
+        onUpdate: (update) => {
+          setAgentResults(prev => ({ ...prev, [persona.id]: { ...prev[persona.id], ...update } }));
+        }
+      });
+
+      // Pause between agents to avoid rate limits
+      if (!abortRef.current) await new Promise(r => setTimeout(r, 2000));
+    }
+
+    if (!abortRef.current) setView("results-all");
+  }, [selectedBot, targetPrompt, maxTurns, apiUrl, apiUsername, apiPassword, runSinglePersonaAgent]);
+
+  // ──────────────────────────────────────────────────────────
+  //  SINGLE PERSONA SIMULATION (original behavior)
   // ──────────────────────────────────────────────────────────
   const runSimulation = useCallback(async () => {
-    if (!selectedPersona) return;
+    if (!selectedPersona) {
+      // No persona selected — run all via coordinating agent
+      return runAllPersonas();
+    }
     abortRef.current = false;
     setView("running"); setMessages([]); setEvaluation(null); setError(null); setConvDone(false);
 
@@ -380,7 +497,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
     } catch (err) {
       if (!abortRef.current) { setError(err.message); setStatus("Error occurred."); }
     }
-  }, [selectedPersona, selectedBot, targetPrompt, maxTurns, apiUrl, apiUsername, apiPassword]);
+  }, [selectedPersona, selectedBot, targetPrompt, maxTurns, apiUrl, apiUsername, apiPassword, runAllPersonas]);
 
   // ════════════════════════════════════════════════════════════
   //  WELCOME / SETUP VIEW — Combined landing page
@@ -471,10 +588,10 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
         </div>
       )}
 
-      <div ref={personaRef} style={{ ...S.sectionTitle, scrollMarginTop: 80 }}>Step 3 — Choose a Persona</div>
+      <div ref={personaRef} style={{ ...S.sectionTitle, scrollMarginTop: 80 }}>Step 3 — Choose a Persona <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "#555" }}>(optional — skip to test all 6)</span></div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 10, marginBottom: 14 }}>
         {PERSONAS.map(p => (
-          <div key={p.id} onClick={() => setSelectedPersona(p.id)}
+          <div key={p.id} onClick={() => setSelectedPersona(prev => prev === p.id ? null : p.id)}
             style={{ border: `2px solid ${selectedPersona === p.id ? p.color : "#2A2A30"}`, borderRadius: 12, padding: 13, cursor: "pointer", background: selectedPersona === p.id ? p.color + "10" : "#1A1A1F", transition: "all 0.2s", position: "relative" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 5 }}>
               <span style={{ fontSize: 24 }}>{p.icon}</span>
@@ -496,11 +613,15 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
 
       <div style={{ textAlign: "center", marginTop: 8 }}>
         {(() => {
-          const canRun = selectedBot && selectedPersona && (selectedBot === "external_api" ? apiUrl.trim() : targetPrompt.trim());
+          const canRun = selectedBot && (selectedBot === "external_api" ? apiUrl.trim() : targetPrompt.trim());
+          const label = selectedPersona
+            ? `🚀  Run Stress Test — ${PERSONAS.find(p => p.id === selectedPersona)?.name}`
+            : "🚀  Run All 6 Personas";
           return (<>
             <button style={{ ...S.btn(true), opacity: canRun ? 1 : 0.4, padding: "13px 44px", fontSize: 15 }}
-              disabled={!canRun} onClick={runSimulation}>🚀&nbsp; Run Stress Test</button>
-            {!canRun && <div style={{ fontSize: 12, color: "#555", marginTop: 6 }}>{!selectedPersona ? "Select a persona above to begin" : "Configure the bot's system prompt"}</div>}
+              disabled={!canRun} onClick={runSimulation}>{label}</button>
+            {!canRun && <div style={{ fontSize: 12, color: "#555", marginTop: 6 }}>Choose a bot and configure its prompt above</div>}
+            {canRun && !selectedPersona && <div style={{ fontSize: 12, color: "#F39C12", marginTop: 6 }}>No persona selected — will test with all 6 personas sequentially</div>}
           </>);
         })()}
       </div>
@@ -622,6 +743,181 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
   };
 
   // ════════════════════════════════════════════════════════════
+  //  RUNNING-ALL VIEW — Coordinating agent dashboard
+  // ════════════════════════════════════════════════════════════
+  const renderRunningAll = () => {
+    const bot = TARGET_BOTS.find(b => b.id === selectedBot) || TARGET_BOTS[0];
+    const botLabel = bot.id === "custom" ? "Custom Bot" : bot.id === "external_api" ? "External Bot" : bot.name;
+    const completedCount = PERSONAS.filter(p => {
+      const r = agentResults[p.id];
+      return r && (r.status === "Complete" || r.status === "Error" || r.status === "Cancelled");
+    }).length;
+
+    return (
+      <div style={S.container}>
+        <div style={{ ...S.card, textAlign: "center", padding: "18px 20px", background: "#131316" }}>
+          <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 2, color: "#555", marginBottom: 6 }}>Coordinating Agent — Testing {botLabel}</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "#F39C12" }}>{completedCount} / {PERSONAS.length} agents complete</div>
+          <div style={{ width: "100%", height: 4, background: "#2A2A30", borderRadius: 2, marginTop: 8 }}>
+            <div style={{ width: `${(completedCount / PERSONAS.length) * 100}%`, height: "100%", background: "linear-gradient(135deg, #F39C12, #E74C3C)", borderRadius: 2, transition: "width 0.5s ease" }} />
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+          {PERSONAS.map(p => {
+            const r = agentResults[p.id] || { status: "Queued", messages: [] };
+            const isDone = r.status === "Complete";
+            const isError = r.status === "Error";
+            const isRunning = !isDone && !isError && r.status !== "Queued" && r.status !== "Cancelled";
+            const borderColor = isDone ? "#27AE60" : isError ? "#E74C3C" : isRunning ? "#F39C12" : "#2A2A30";
+            return (
+              <div key={p.id} style={{ ...S.card, borderColor, borderWidth: 2, borderStyle: "solid", padding: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 8 }}>
+                  <span style={{ fontSize: 24 }}>{p.icon}</span>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 13.5 }}>{p.name}</div>
+                    <Pill color={isDone ? "#27AE60" : isError ? "#E74C3C" : isRunning ? "#F39C12" : "#555"}>
+                      {isDone ? "Done" : isError ? "Error" : isRunning ? "Running" : "Queued"}
+                    </Pill>
+                  </div>
+                </div>
+                <div style={{ fontSize: 12, color: "#666", minHeight: 20 }}>
+                  {isRunning && <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ animation: "synthPulse 1.2s infinite", color: "#F39C12" }}>●</span> {r.status}
+                  </span>}
+                  {isDone && r.evaluation && <span style={{ color: "#27AE60", fontWeight: 600 }}>Score: {r.evaluation.overall_score}/10</span>}
+                  {isError && <span style={{ color: "#E74C3C" }}>{r.error}</span>}
+                  {r.status === "Queued" && <span style={{ color: "#555" }}>Waiting...</span>}
+                </div>
+                {r.messages.length > 0 && (
+                  <div style={{ marginTop: 8, maxHeight: 120, overflowY: "auto", borderTop: "1px solid #2A2A30", paddingTop: 8 }}>
+                    {r.messages.slice(-2).map((m, i) => (
+                      <div key={i} style={{ fontSize: 11, color: "#888", marginBottom: 4, lineHeight: 1.4 }}>
+                        <span style={{ fontWeight: 600, color: m.role === "user" ? p.color : "#2471A3" }}>{m.icon}</span>{" "}
+                        {cleanMarkdown(m.text?.slice(0, 100))}{m.text?.length > 100 ? "..." : ""}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{ textAlign: "center", marginTop: 12 }}>
+          <button onClick={() => { abortRef.current = true; }}
+            style={{ ...S.btn(false), padding: "8px 20px", fontSize: 12, borderColor: "#E74C3C", color: "#E74C3C" }}>Stop All Agents</button>
+        </div>
+        <style>{`@keyframes synthPulse { 0%,100%{opacity:1} 50%{opacity:0.3} }`}</style>
+      </div>
+    );
+  };
+
+  // ════════════════════════════════════════════════════════════
+  //  RESULTS-ALL VIEW — Aggregated dashboard for all personas
+  // ════════════════════════════════════════════════════════════
+  const renderResultsAll = () => {
+    const bot = TARGET_BOTS.find(b => b.id === selectedBot) || TARGET_BOTS[0];
+    const botLabel = bot.id === "custom" ? "Custom Bot" : bot.id === "external_api" ? "External Bot" : bot.name;
+    const cats = [
+      { key: "clarity", label: "Clarity", icon: "💬" }, { key: "helpfulness", label: "Helpful", icon: "✅" },
+      { key: "tone_empathy", label: "Empathy", icon: "💛" }, { key: "safety", label: "Safety", icon: "🛡️" },
+      { key: "adaptability", label: "Adapt", icon: "🔄" }
+    ];
+
+    // Compute aggregate scores
+    const completedPersonas = PERSONAS.filter(p => agentResults[p.id]?.evaluation);
+    const avgScore = completedPersonas.length > 0
+      ? +(completedPersonas.reduce((sum, p) => sum + (agentResults[p.id].evaluation.overall_score || 0), 0) / completedPersonas.length).toFixed(1)
+      : 0;
+    const avgCats = {};
+    cats.forEach(c => {
+      avgCats[c.key] = completedPersonas.length > 0
+        ? +(completedPersonas.reduce((sum, p) => sum + (agentResults[p.id].evaluation[c.key]?.score || 0), 0) / completedPersonas.length).toFixed(1)
+        : 0;
+    });
+
+    return (
+      <div style={S.container}>
+        {/* Aggregate header */}
+        <div style={{ ...S.card, textAlign: "center", background: "linear-gradient(180deg, #1A1A1F, #131316)", padding: "32px 20px", border: "1px solid #2A2A30" }}>
+          <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 2, color: "#555", marginBottom: 14 }}>Full Evaluation Report — {botLabel}</div>
+          <div style={{ fontSize: 14, color: "#888", marginBottom: 12 }}>{completedPersonas.length} of {PERSONAS.length} personas tested</div>
+          <ScoreRing score={avgScore} size={100} stroke={7} />
+          <div style={{ fontSize: 12, color: "#555", marginTop: 6 }}>Average Overall Score</div>
+        </div>
+
+        {/* Aggregate category breakdown */}
+        <div style={S.card}>
+          <div style={S.sectionTitle}>Average Category Scores</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, textAlign: "center" }}>
+            {cats.map(c => (
+              <div key={c.key}>
+                <ScoreRing score={avgCats[c.key]} size={56} stroke={4} />
+                <div style={{ fontSize: 11, fontWeight: 600, marginTop: 5, color: "#aaa" }}>{c.icon} {c.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Per-persona score cards */}
+        <div style={S.sectionTitle}>Individual Persona Results</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12, marginBottom: 14 }}>
+          {PERSONAS.map(p => {
+            const r = agentResults[p.id];
+            const ev = r?.evaluation;
+            const isExpanded = expandedPersona === p.id;
+            return (
+              <div key={p.id} style={{ ...S.card, cursor: "pointer", borderColor: ev ? p.color + "60" : "#2A2A30", transition: "all 0.2s" }}
+                onClick={() => setExpandedPersona(isExpanded ? null : p.id)}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: ev ? 10 : 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                    <span style={{ fontSize: 24 }}>{p.icon}</span>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 13.5 }}>{p.name}</div>
+                      <Pill color={p.color}>{p.difficulty}</Pill>
+                    </div>
+                  </div>
+                  {ev && <ScoreRing score={ev.overall_score} size={48} stroke={4} />}
+                  {r?.error && <Pill color="#E74C3C">Error</Pill>}
+                </div>
+                {ev && (
+                  <>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4, textAlign: "center", marginBottom: isExpanded ? 10 : 0 }}>
+                      {cats.map(c => (
+                        <div key={c.key} style={{ fontSize: 10, color: "#888" }}>
+                          {c.icon} <span style={{ fontWeight: 700, color: (ev[c.key]?.score || 0) >= 7 ? "#27AE60" : (ev[c.key]?.score || 0) >= 4 ? "#F39C12" : "#E74C3C" }}>{ev[c.key]?.score || 0}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {isExpanded && (
+                      <div style={{ borderTop: "1px solid #2A2A30", paddingTop: 10 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#27AE60", marginBottom: 4 }}>Strengths</div>
+                        {(ev.strengths || []).map((s, i) => <div key={i} style={{ fontSize: 11, color: "#888", marginBottom: 2, lineHeight: 1.4 }}>• {s}</div>)}
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#E74C3C", marginTop: 6, marginBottom: 4 }}>Failures</div>
+                        {(ev.failures || []).map((f, i) => <div key={i} style={{ fontSize: 11, color: "#888", marginBottom: 2, lineHeight: 1.4 }}>• {f}</div>)}
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#F39C12", marginTop: 6, marginBottom: 4 }}>Recommendation</div>
+                        <div style={{ fontSize: 11, color: "#888", lineHeight: 1.4 }}>{ev.recommendation}</div>
+                        <TranscriptSection messages={r.messages} />
+                      </div>
+                    )}
+                  </>
+                )}
+                {!ev && !r?.error && <div style={{ fontSize: 12, color: "#555", marginTop: 6 }}>Not completed</div>}
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 10 }}>
+          <button style={{ ...S.btn(false), padding: "12px 28px" }} onClick={() => setView("home")}>🔧 Modify & Re-run</button>
+          <button style={{ ...S.btn(true), padding: "12px 32px", fontSize: 16 }} onClick={resetAll}>🔄  Start Over</button>
+        </div>
+      </div>
+    );
+  };
+
+  // ════════════════════════════════════════════════════════════
   return (
     <div style={S.root}>
       <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
@@ -635,6 +931,8 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
       {view === "home" && renderHome()}
       {view === "running" && renderRunning()}
       {view === "results" && renderResults()}
+      {view === "running-all" && renderRunningAll()}
+      {view === "results-all" && renderResultsAll()}
     </div>
   );
 }

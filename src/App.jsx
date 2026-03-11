@@ -225,21 +225,26 @@ function Pill({ children, color = "#888" }) {
   return <span style={{ display: "inline-block", padding: "2px 9px", borderRadius: 20, fontSize: 10, fontWeight: 600, background: color + "18", color, letterSpacing: 0.3 }}>{children}</span>;
 }
 
-function TranscriptSection({ messages: msgs }) {
+function TranscriptSection({ messages: msgs, inline }) {
   const [open, setOpen] = useState(false);
+  const wrapStyle = inline
+    ? { marginTop: 10, borderTop: "1px solid #2A2A30", paddingTop: 10 }
+    : S.card;
   return (
-    <div style={S.card}>
+    <div style={wrapStyle} onClick={e => e.stopPropagation()}>
       <div style={{ ...S.sectionTitle, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: open ? 14 : 0 }}
         onClick={() => setOpen(!open)}>
-        <span>Full Transcript</span>
+        <span>Full Transcript ({msgs?.length || 0} messages)</span>
         <span style={{ fontSize: 16, fontWeight: 400 }}>{open ? "−" : "+"}</span>
       </div>
       {open && (
-        <div style={{ maxHeight: 340, overflowY: "auto" }}>
-          {msgs.map((m, i) => (
-            <div key={i} style={{ marginBottom: 10 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: m.role === "user" ? "#D4845A" : "#2471A3", marginBottom: 2 }}>{m.icon} {m.speaker}</div>
-              <div style={{ fontSize: 13, lineHeight: 1.6, color: "#444", paddingLeft: 22 }}>{cleanMarkdown(m.text)}</div>
+        <div style={{ maxHeight: 400, overflowY: "auto" }}>
+          {(!msgs || msgs.length === 0) ? (
+            <div style={{ fontSize: 12, color: "#666", fontStyle: "italic" }}>No transcript available</div>
+          ) : msgs.map((m, i) => (
+            <div key={i} style={{ marginBottom: 12, padding: "8px 10px", borderRadius: 8, background: m.role === "user" ? "#1E1E24" : "#16161B" }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: m.role === "user" ? "#D4845A" : "#2471A3", marginBottom: 3 }}>{m.icon} {m.speaker}</div>
+              <div style={{ fontSize: 13, lineHeight: 1.6, color: "#CCC", paddingLeft: 22 }}>{cleanMarkdown(m.text)}</div>
             </div>
           ))}
         </div>
@@ -898,7 +903,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
                         {(ev.failures || []).map((f, i) => <div key={i} style={{ fontSize: 11, color: "#888", marginBottom: 2, lineHeight: 1.4 }}>• {f}</div>)}
                         <div style={{ fontSize: 11, fontWeight: 700, color: "#F39C12", marginTop: 6, marginBottom: 4 }}>Recommendation</div>
                         <div style={{ fontSize: 11, color: "#888", lineHeight: 1.4 }}>{ev.recommendation}</div>
-                        <TranscriptSection messages={r.messages} />
+                        <TranscriptSection messages={r.messages} inline />
                       </div>
                     )}
                   </>

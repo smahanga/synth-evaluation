@@ -1037,17 +1037,17 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <div style={S.card}>
             <div style={S.sectionTitle}>🏆 Strengths</div>
-            {(evaluation.strengths || []).map((s, i) => <div key={i} style={{ padding: "6px 10px", background: "#27AE6015", borderRadius: 8, fontSize: 12.5, marginBottom: 5, color: "#27AE60", lineHeight: 1.5, border: "1px solid #27AE6025" }}>{s}</div>)}
+            {(evaluation.strengths || []).map((s, i) => <div key={i} style={{ padding: "6px 10px", background: "#27AE6015", borderRadius: 8, fontSize: 13, marginBottom: 5, color: "#27AE60", lineHeight: 1.6, border: "1px solid #27AE6025" }}>{s}</div>)}
           </div>
           <div style={S.card}>
             <div style={S.sectionTitle}>⚠️ Failures</div>
-            {(evaluation.failures || []).map((f, i) => <div key={i} style={{ padding: "6px 10px", background: f==="None"?"#ffffff08":"#E74C3C15", borderRadius: 8, fontSize: 12.5, marginBottom: 5, color: f==="None"?"#666":"#E74C3C", lineHeight: 1.5, border: `1px solid ${f==="None"?"#333":"#E74C3C25"}` }}>{f}</div>)}
+            {(evaluation.failures || []).map((f, i) => <div key={i} style={{ padding: "6px 10px", background: f==="None"?"#ffffff08":"#E74C3C15", borderRadius: 8, fontSize: 13, marginBottom: 5, color: f==="None"?"#666":"#E74C3C", lineHeight: 1.6, border: `1px solid ${f==="None"?"#333":"#E74C3C25"}` }}>{f}</div>)}
           </div>
         </div>
 
         <div style={{ ...S.card, borderLeft: "4px solid #F39C12" }}>
           <div style={S.sectionTitle}>💡 Recommendation</div>
-          <div style={{ fontSize: 14, lineHeight: 1.7, color: "#ccc" }}>{evaluation.recommendation}</div>
+          <div style={{ fontSize: 13, lineHeight: 1.6, color: "#ccc" }}>{evaluation.recommendation}</div>
         </div>
 
         <TranscriptSection messages={messages} />

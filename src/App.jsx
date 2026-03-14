@@ -1874,8 +1874,21 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
         </div>
       ) : (
         <div style={S.card}>
-          <textarea style={S.textarea} value={targetPrompt} onChange={e => { setTargetPrompt(e.target.value); if (!selectedBot) setSelectedBot("custom"); }}
-            placeholder={selectedBot === "custom" || !selectedBot ? "Write your bot's system prompt here..." : ""} />
+          {(() => {
+            const wordCount = targetPrompt.trim() ? targetPrompt.trim().split(/\s+/).length : 0;
+            const overLimit = wordCount > 2000;
+            return (<>
+              <textarea style={{ ...S.textarea, borderColor: overLimit ? "#E74C3C" : "#333" }} value={targetPrompt}
+                onChange={e => {
+                  const words = e.target.value.trim() ? e.target.value.trim().split(/\s+/).length : 0;
+                  if (words <= 2000 || e.target.value.length < targetPrompt.length) { setTargetPrompt(e.target.value); if (!selectedBot) setSelectedBot("custom"); }
+                }}
+                placeholder={selectedBot === "custom" || !selectedBot ? "Write your bot's system prompt here..." : ""} />
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4, fontSize: 11, color: overLimit ? "#E74C3C" : wordCount > 1800 ? "#F39C12" : "#555" }}>
+                {wordCount}/2000 words
+              </div>
+            </>);
+          })()}
         </div>
       )}
 
@@ -1904,7 +1917,8 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
 
       <div style={{ textAlign: "center", marginTop: 8 }}>
         {(() => {
-          const canRun = selectedBot && (selectedBot === "external_api" ? apiUrl.trim() : targetPrompt.trim());
+          const promptWords = targetPrompt.trim() ? targetPrompt.trim().split(/\s+/).length : 0;
+          const canRun = selectedBot && (selectedBot === "external_api" ? apiUrl.trim() : targetPrompt.trim()) && promptWords <= 2000;
           const label = selectedPersona
             ? `🚀  Run Stress Test — ${PERSONAS.find(p => p.id === selectedPersona)?.name}`
             : "🚀  Stress Test";

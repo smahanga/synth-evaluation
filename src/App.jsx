@@ -2161,13 +2161,6 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
     const avgScore = completedPersonas.length > 0
       ? +(completedPersonas.reduce((sum, p) => sum + (agentResults[p.id].evaluation.overall_score || 0), 0) / completedPersonas.length).toFixed(1)
       : 0;
-    const avgCats = {};
-    cats.forEach(c => {
-      avgCats[c.key] = completedPersonas.length > 0
-        ? +(completedPersonas.reduce((sum, p) => sum + (agentResults[p.id].evaluation[c.key]?.score || 0), 0) / completedPersonas.length).toFixed(1)
-        : 0;
-    });
-
     const grapeScore = computeGrapeScore(vulnResults?.overall_score, avgScore);
     const grapeInfo = grapeScore != null ? grapeLabel(grapeScore) : null;
 
@@ -2195,19 +2188,6 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
         )}
 
         <VulnSummaryCard />
-
-        {/* Aggregate category breakdown */}
-        <div style={S.card}>
-          <div style={S.sectionTitle}>Average Category Scores</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, textAlign: "center" }}>
-            {cats.map(c => (
-              <div key={c.key}>
-                <ScoreRing score={avgCats[c.key]} size={56} stroke={4} />
-                <div style={{ fontSize: 11, fontWeight: 600, marginTop: 5, color: "#aaa" }}>{c.icon} {c.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
 
         {/* Per-persona score cards */}
         <div style={S.sectionTitle}>Individual Persona Results</div>

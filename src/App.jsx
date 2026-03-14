@@ -456,7 +456,7 @@ export default function App() {
 
   // Pre-assessment questionnaire state
   const [assessmentAnswers, setAssessmentAnswers] = useState({
-    tradeoff: 5,            // 1=user-friendly, 10=to-the-point
+    tradeoff: 5,            // 1=to-the-point, 10=user-friendly
     riskTolerance: null,    // "low" | "medium" | "high"
     escalationTypes: [],    // ["email", "phone", "chat"]
     untrustedContent: null, // "yes" | "no" | "partially"

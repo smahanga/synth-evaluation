@@ -1,4 +1,4 @@
-// GRAPES API Proxy
+// CRAPES API Proxy
 // Supports two engines: "claude" (Anthropic) for testing agents, "gemini" (Google) for evaluation
 
 export const config = {

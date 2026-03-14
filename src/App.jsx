@@ -268,19 +268,44 @@ ${syntheticData.slice(0, 2000)}`;
 async function callLLM(systemPrompt, messages, { engine = "claude", maxTokens = 1024 } = {}) {
   const maxRetries = 5;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const resp = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ system: systemPrompt, messages, max_tokens: maxTokens, engine })
-    });
+    // Add 55s timeout so requests don't hang forever
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 55000);
+    let resp;
+    try {
+      resp = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ system: systemPrompt, messages, max_tokens: maxTokens, engine }),
+        signal: controller.signal
+      });
+    } catch (fetchErr) {
+      clearTimeout(timeoutId);
+      if (fetchErr.name === "AbortError") {
+        if (attempt < maxRetries) {
+          await new Promise(r => setTimeout(r, 3000));
+          continue;
+        }
+        throw new Error("Request timed out after multiple attempts. The API may be overloaded.");
+      }
+      throw fetchErr;
+    }
+    clearTimeout(timeoutId);
 
     if (resp.status === 429) {
       if (attempt < maxRetries) {
-        const wait = 5000 * Math.pow(2, attempt); // 5s, 10s, 20s, 40s, 80s
+        const wait = 3000 * Math.pow(2, attempt); // 3s, 6s, 12s, 24s, 48s
         await new Promise(r => setTimeout(r, wait));
         continue;
       }
       throw new Error("Rate limit reached — too many requests. Please wait a minute and try again.");
+    }
+
+    if (resp.status === 503 || resp.status === 502) {
+      if (attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, 3000 * (attempt + 1)));
+        continue;
+      }
     }
 
     if (!resp.ok) {
@@ -857,7 +882,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
         if (botId === "external_api" && extApiUrl?.trim()) {
           botReply = await callExternalApi(extApiUrl, userMsg, targetHistory.slice(0, -1), extUsername, extPassword);
         } else {
-          botReply = await callLLM(botPromptClean, targetHistory, { engine: "gemini" });
+          botReply = await callLLM(botPromptClean, targetHistory, { engine: "claude" });
         }
 
         targetHistory.push({ role: "assistant", content: botReply });
@@ -949,15 +974,18 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
       }
     };
 
-    // Wave 1: first 3 personas with 1s stagger
+    // Wave 1: first 3 personas with 2s stagger to avoid rate limits
     const wave1 = PERSONAS.slice(0, 3);
-    await Promise.all(wave1.map((p, idx) => runPersonaWithRetry(p, idx * 1000)));
+    await Promise.all(wave1.map((p, idx) => runPersonaWithRetry(p, idx * 2000)));
 
     if (abortRef.current) { if (!abortRef.current) setView("results-all"); return; }
 
-    // Wave 2: next 3 personas with 1s stagger
+    // Brief pause between waves to avoid rate limits
+    await new Promise(r => setTimeout(r, 3000));
+
+    // Wave 2: next 3 personas with 2s stagger
     const wave2 = PERSONAS.slice(3);
-    await Promise.all(wave2.map((p, idx) => runPersonaWithRetry(p, idx * 1000)));
+    await Promise.all(wave2.map((p, idx) => runPersonaWithRetry(p, idx * 2000)));
 
     if (!abortRef.current) setView("results-all");
   }, [selectedBot, targetPrompt, maxTurns, apiUrl, apiUsername, apiPassword, runSinglePersonaAgent, runVulnerabilityCheck]);
@@ -1025,7 +1053,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
         if (selectedBot === "external_api" && apiUrl.trim()) {
           botReply = await callExternalApi(apiUrl, userMsg, targetHistory.slice(0, -1), apiUsername, apiPassword);
         } else {
-          botReply = await callLLM(botPromptClean, targetHistory, { engine: "gemini" });
+          botReply = await callLLM(botPromptClean, targetHistory, { engine: "claude" });
         }
 
         targetHistory.push({ role: "assistant", content: botReply });

@@ -1775,7 +1775,15 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
 
         <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 10 }}>
           <button style={{ ...S.btn(false), padding: "12px 24px" }} onClick={() => setView(evaluation ? "results" : "results-all")}>← Back to Results</button>
-          {isDone && <button style={{ ...S.btn(false), padding: "12px 28px" }} onClick={() => exportToPDF(evaluation ? "single" : "all")}>📄 Export PDF</button>}
+          {isDone && refinedPrompt && <button style={{ ...S.btn(false), padding: "12px 28px", borderColor: "#27AE60", color: "#27AE60" }} onClick={() => {
+            const blob = new Blob([refinedPrompt], { type: "text/plain" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `GRAPESS_Refined_Prompt_${new Date().toISOString().slice(0, 10)}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+          }}>📄 Export Prompt</button>}
           <button style={{ ...S.btn(true), padding: "12px 28px" }} onClick={resetAll}>🔄 Start Over</button>
         </div>
         <style>{`@keyframes synthPulse { 0%,100%{opacity:1} 50%{opacity:0.3} }`}</style>

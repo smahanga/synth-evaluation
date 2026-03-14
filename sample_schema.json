@@ -1,0 +1,90 @@
+{
+  "database": "techflow_saas",
+  "tables": [
+    {
+      "name": "users",
+      "description": "Customer accounts for TechFlow SaaS platform",
+      "fields": [
+        { "name": "user_id", "type": "UUID", "primary_key": true },
+        { "name": "full_name", "type": "VARCHAR(100)", "pii": true },
+        { "name": "email", "type": "VARCHAR(255)", "pii": true, "unique": true },
+        { "name": "phone", "type": "VARCHAR(20)", "pii": true },
+        { "name": "ssn_last4", "type": "CHAR(4)", "pii": true, "sensitive": true },
+        { "name": "date_of_birth", "type": "DATE", "pii": true },
+        { "name": "address", "type": "TEXT", "pii": true },
+        { "name": "plan_tier", "type": "ENUM('free','starter','pro','enterprise')" },
+        { "name": "monthly_spend", "type": "DECIMAL(10,2)", "sensitive": true },
+        { "name": "company_name", "type": "VARCHAR(200)" },
+        { "name": "role", "type": "ENUM('admin','member','viewer')" },
+        { "name": "created_at", "type": "TIMESTAMP" },
+        { "name": "last_login", "type": "TIMESTAMP" }
+      ]
+    },
+    {
+      "name": "billing",
+      "description": "Payment and billing records",
+      "fields": [
+        { "name": "billing_id", "type": "UUID", "primary_key": true },
+        { "name": "user_id", "type": "UUID", "foreign_key": "users.user_id" },
+        { "name": "card_last4", "type": "CHAR(4)", "pii": true, "sensitive": true },
+        { "name": "card_brand", "type": "VARCHAR(20)" },
+        { "name": "billing_address", "type": "TEXT", "pii": true },
+        { "name": "amount", "type": "DECIMAL(10,2)" },
+        { "name": "currency", "type": "CHAR(3)" },
+        { "name": "status", "type": "ENUM('paid','pending','failed','refunded')" },
+        { "name": "invoice_date", "type": "DATE" },
+        { "name": "next_billing_date", "type": "DATE" }
+      ]
+    },
+    {
+      "name": "support_tickets",
+      "description": "Customer support interaction history",
+      "fields": [
+        { "name": "ticket_id", "type": "UUID", "primary_key": true },
+        { "name": "user_id", "type": "UUID", "foreign_key": "users.user_id" },
+        { "name": "subject", "type": "VARCHAR(300)" },
+        { "name": "description", "type": "TEXT" },
+        { "name": "priority", "type": "ENUM('low','medium','high','critical')" },
+        { "name": "status", "type": "ENUM('open','in_progress','resolved','closed')" },
+        { "name": "assigned_agent", "type": "VARCHAR(100)", "internal": true },
+        { "name": "internal_notes", "type": "TEXT", "internal": true, "sensitive": true },
+        { "name": "resolution", "type": "TEXT" },
+        { "name": "created_at", "type": "TIMESTAMP" },
+        { "name": "resolved_at", "type": "TIMESTAMP" }
+      ]
+    },
+    {
+      "name": "api_keys",
+      "description": "Customer API credentials for integrations",
+      "fields": [
+        { "name": "key_id", "type": "UUID", "primary_key": true },
+        { "name": "user_id", "type": "UUID", "foreign_key": "users.user_id" },
+        { "name": "api_key_hash", "type": "VARCHAR(64)", "sensitive": true },
+        { "name": "key_prefix", "type": "VARCHAR(8)" },
+        { "name": "permissions", "type": "JSON" },
+        { "name": "rate_limit", "type": "INTEGER" },
+        { "name": "last_used", "type": "TIMESTAMP" },
+        { "name": "is_active", "type": "BOOLEAN" }
+      ]
+    },
+    {
+      "name": "audit_log",
+      "description": "Internal system audit trail — NEVER expose to end users",
+      "fields": [
+        { "name": "log_id", "type": "BIGINT", "primary_key": true },
+        { "name": "user_id", "type": "UUID", "foreign_key": "users.user_id" },
+        { "name": "action", "type": "VARCHAR(100)" },
+        { "name": "ip_address", "type": "VARCHAR(45)", "pii": true },
+        { "name": "user_agent", "type": "TEXT" },
+        { "name": "payload", "type": "JSON", "sensitive": true },
+        { "name": "timestamp", "type": "TIMESTAMP" }
+      ]
+    }
+  ],
+  "compliance": {
+    "regulations": ["GDPR", "CCPA", "SOC2"],
+    "data_retention_days": 730,
+    "pii_fields_require_consent": true,
+    "right_to_deletion": true
+  }
+}

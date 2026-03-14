@@ -586,7 +586,7 @@ Category Scores: Clarity ${evalSingle.clarity?.score}/10, Helpfulness ${evalSing
           const msgsForUser = syntheticHistory.length === 0
             ? [{ role: "user", content: "You are now connected to the chat. Begin the conversation in character." }]
             : syntheticHistory;
-          const userMsg = await callLLM(contextAwarePrompt, msgsForUser, { engine: "gemini" });
+          const userMsg = await callLLM(contextAwarePrompt, msgsForUser, { engine: "claude" });
           syntheticHistory.push({ role: "assistant", content: userMsg });
           transcript.push({ role: "user", speaker: persona.name, text: userMsg });
           targetHistory.push({ role: "user", content: userMsg });
@@ -867,7 +867,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
         const msgsForUser = syntheticHistory.length === 0
           ? [{ role: "user", content: "You are now connected to the chat. Begin the conversation in character." }]
           : syntheticHistory;
-        const userMsg = await callLLM(contextAwarePrompt, msgsForUser, { engine: "gemini" });
+        const userMsg = await callLLM(contextAwarePrompt, msgsForUser, { engine: "claude" });
 
         syntheticHistory.push({ role: "assistant", content: userMsg });
         transcript.push({ role: "user", speaker: persona.name, text: userMsg });
@@ -890,7 +890,6 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
         transcript.push({ role: "assistant", speaker: botName, text: botReply });
         agentMessages.push({ role: "assistant", speaker: botName, icon: "🤖", text: botReply });
         onUpdate({ status: `Turn ${turn+1}/${turns} — done`, messages: [...agentMessages] });
-        await new Promise(r => setTimeout(r, 1000));
       }
 
       if (abortRef.current) { onUpdate({ status: "Cancelled", messages: agentMessages }); return null; }
@@ -925,8 +924,8 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
     const vulnResult = await runVulnerabilityCheck(prompt);
     if (abortRef.current) return;
 
-    // Brief pause to let user see vuln results before proceeding
-    await new Promise(r => setTimeout(r, 2500));
+    // Brief pause to let user see vuln results
+    await new Promise(r => setTimeout(r, 1000));
     if (abortRef.current) return;
 
     const initialState = {};
@@ -952,7 +951,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
             ...prev,
             [persona.id]: { ...prev[persona.id], status: `Retrying (${attempt}/${maxRetries})...`, error: null }
           }));
-          await new Promise(r => setTimeout(r, 3000 * attempt));
+          await new Promise(r => setTimeout(r, 2000 * attempt));
         } else {
           setAgentResults(prev => ({
             ...prev,
@@ -974,18 +973,15 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
       }
     };
 
-    // Wave 1: first 3 personas with 2s stagger to avoid rate limits
+    // Wave 1: first 3 personas with 1s stagger
     const wave1 = PERSONAS.slice(0, 3);
-    await Promise.all(wave1.map((p, idx) => runPersonaWithRetry(p, idx * 2000)));
+    await Promise.all(wave1.map((p, idx) => runPersonaWithRetry(p, idx * 1000)));
 
     if (abortRef.current) { if (!abortRef.current) setView("results-all"); return; }
 
-    // Brief pause between waves to avoid rate limits
-    await new Promise(r => setTimeout(r, 3000));
-
-    // Wave 2: next 3 personas with 2s stagger
+    // Wave 2: next 3 personas with 1s stagger
     const wave2 = PERSONAS.slice(3);
-    await Promise.all(wave2.map((p, idx) => runPersonaWithRetry(p, idx * 2000)));
+    await Promise.all(wave2.map((p, idx) => runPersonaWithRetry(p, idx * 1000)));
 
     if (!abortRef.current) setView("results-all");
   }, [selectedBot, targetPrompt, maxTurns, apiUrl, apiUsername, apiPassword, runSinglePersonaAgent, runVulnerabilityCheck]);
@@ -1005,8 +1001,8 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
     await runVulnerabilityCheck(prompt);
     if (abortRef.current) return;
 
-    // Brief pause to let user see vuln results before proceeding
-    await new Promise(r => setTimeout(r, 2500));
+    // Brief pause to let user see vuln results
+    await new Promise(r => setTimeout(r, 1000));
     if (abortRef.current) return;
 
     setView("running"); setMessages([]); setEvaluation(null); setError(null); setConvDone(false);
@@ -1037,7 +1033,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
         const msgsForUser = syntheticHistory.length === 0
           ? [{ role: "user", content: "You are now connected to the chat. Begin the conversation in character." }]
           : syntheticHistory;
-        const userMsg = await callLLM(contextAwarePrompt, msgsForUser, { engine: "gemini" });
+        const userMsg = await callLLM(contextAwarePrompt, msgsForUser, { engine: "claude" });
 
         syntheticHistory.push({ role: "assistant", content: userMsg });
         transcript.push({ role: "user", speaker: persona.name, text: userMsg });
@@ -1060,7 +1056,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
         syntheticHistory.push({ role: "user", content: botReply });
         transcript.push({ role: "assistant", speaker: botName, text: botReply });
         setMessages(prev => [...prev, { role: "assistant", speaker: botName, icon: "🤖", text: botReply }]);
-        await new Promise(r => setTimeout(r, 3000)); // Pause between turns to avoid rate limits
+        await new Promise(r => setTimeout(r, 500)); // Brief pause between turns
       }
 
       setConvDone(true);

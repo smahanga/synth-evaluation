@@ -904,23 +904,38 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
   // Runs evaluation on a completed conversation transcript (uses Gemini)
   const runPersonaEvaluation = useCallback(async (convResult, onUpdate) => {
     const { persona, transcript, agentMessages } = convResult;
-    try {
-      onUpdate({ status: "📊 Evaluating...", messages: agentMessages });
-      const assessCtx = formatAssessmentContext(assessmentRef.current);
-      const transcriptText = transcript.map(m => `[${m.speaker}]: ${m.text}`).join("\n\n");
-      const evalInput = `${assessCtx ? assessCtx + "\n\n" : ""}PERSONA: ${persona.name} — ${persona.description}\n\nTRANSCRIPT:\n${transcriptText}`;
-      const evalRaw = await callLLM(EVALUATION_PROMPT, [{ role: "user", content: evalInput }], { engine: "gemini" });
+    const assessCtx = formatAssessmentContext(assessmentRef.current);
+    const transcriptText = transcript.map(m => `[${m.speaker}]: ${m.text}`).join("\n\n");
+    const evalInput = `${assessCtx ? assessCtx + "\n\n" : ""}PERSONA: ${persona.name} — ${persona.description}\n\nTRANSCRIPT:\n${transcriptText}`;
 
-      let evalData;
-      try { evalData = JSON.parse(evalRaw.replace(/```json|```/g, "").trim()); }
-      catch { throw new Error("Evaluation returned invalid format."); }
+    // Retry evaluation up to 2 times if Gemini returns bad JSON
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        onUpdate({ status: attempt > 0 ? "📊 Re-evaluating..." : "📊 Evaluating...", messages: agentMessages });
+        const evalRaw = await callLLM(EVALUATION_PROMPT, [{ role: "user", content: evalInput }], { engine: "gemini" });
 
-      onUpdate({ status: "Complete", messages: agentMessages, evaluation: evalData });
-      return evalData;
-    } catch (err) {
-      onUpdate({ status: "Error", messages: agentMessages, error: err.message });
-      return null;
+        let evalData;
+        try { evalData = JSON.parse(evalRaw.replace(/```json|```/g, "").trim()); }
+        catch {
+          // Try to extract JSON object from the response
+          const jsonMatch = evalRaw.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            evalData = JSON.parse(jsonMatch[0]);
+          } else {
+            if (attempt === 0) { await new Promise(r => setTimeout(r, 1000)); continue; }
+            throw new Error("Evaluation returned invalid format.");
+          }
+        }
+
+        onUpdate({ status: "Complete", messages: agentMessages, evaluation: evalData });
+        return evalData;
+      } catch (err) {
+        if (attempt === 0) { await new Promise(r => setTimeout(r, 1000)); continue; }
+        onUpdate({ status: "Error", messages: agentMessages, error: err.message });
+        return null;
+      }
     }
+    return null;
   }, []);
 
 

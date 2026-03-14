@@ -973,15 +973,8 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
       }
     };
 
-    // Wave 1: first 3 personas with 1s stagger
-    const wave1 = PERSONAS.slice(0, 3);
-    await Promise.all(wave1.map((p, idx) => runPersonaWithRetry(p, idx * 1000)));
-
-    if (abortRef.current) { if (!abortRef.current) setView("results-all"); return; }
-
-    // Wave 2: next 3 personas with 1s stagger
-    const wave2 = PERSONAS.slice(3);
-    await Promise.all(wave2.map((p, idx) => runPersonaWithRetry(p, idx * 1000)));
+    // Run all 6 personas in parallel with slight stagger (2 API keys handle the load)
+    await Promise.all(PERSONAS.map((p, idx) => runPersonaWithRetry(p, idx * 500)));
 
     if (!abortRef.current) setView("results-all");
   }, [selectedBot, targetPrompt, maxTurns, apiUrl, apiUsername, apiPassword, runSinglePersonaAgent, runVulnerabilityCheck]);

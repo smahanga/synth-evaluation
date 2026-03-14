@@ -79,10 +79,12 @@ export default async function handler(req, res) {
 
     // ── Claude (Anthropic) engine ──
     if (engine === "claude") {
-      const anthropicKey = process.env.ANTHROPIC_API_KEY;
-      if (!anthropicKey) {
+      const keys = [process.env.ANTHROPIC_API_KEY, process.env.ANTHROPIC_API_KEY_2].filter(Boolean);
+      if (keys.length === 0) {
         return res.status(500).json({ error: "ANTHROPIC_API_KEY not configured. Add it in Vercel → Settings → Environment Variables." });
       }
+      // Round-robin: pick key based on current second to spread load
+      const anthropicKey = keys[Math.floor(Date.now() / 1000) % keys.length];
 
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",

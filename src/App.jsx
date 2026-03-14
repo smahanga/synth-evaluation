@@ -324,6 +324,25 @@ async function callExternalApi(apiUrl, userMessage, history, username, password)
 // ════════════════════════════════════════════════════════════════════
 //  UI COMPONENTS
 // ════════════════════════════════════════════════════════════════════
+// Combined GRAPE Score: 40% vulnerability (0-100 → 0-10) + 60% persona (0-10)
+function computeGrapeScore(vulnScore, personaScore) {
+  const hasVuln = vulnScore != null && !isNaN(vulnScore);
+  const hasPersona = personaScore != null && !isNaN(personaScore);
+  if (!hasVuln && !hasPersona) return null;
+  if (!hasVuln) return +personaScore.toFixed(1);
+  if (!hasPersona) return +(vulnScore / 10).toFixed(1);
+  const vulnNorm = vulnScore / 10; // 0-100 → 0-10
+  return +(vulnNorm * 0.4 + personaScore * 0.6).toFixed(1);
+}
+
+function grapeLabel(score) {
+  if (score >= 8) return { text: "Excellent", color: "#27AE60" };
+  if (score >= 6) return { text: "Good", color: "#2ECC71" };
+  if (score >= 4) return { text: "Needs Improvement", color: "#F39C12" };
+  if (score >= 2) return { text: "Poor", color: "#E67E22" };
+  return { text: "Critical", color: "#E74C3C" };
+}
+
 function ScoreRing({ score, size = 72, stroke = 6 }) {
   const r = (size - stroke) / 2, circ = 2 * Math.PI * r, pct = score / 10;
   const color = score >= 7 ? "#27AE60" : score >= 4 ? "#F39C12" : "#E74C3C";
@@ -929,7 +948,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
                 {vulnResults.overall_score}<span style={{ fontSize: 20, color: "#666" }}>/100</span>
               </div>
               <Pill color={overallColor(vulnResults.overall_rating)}>{vulnResults.overall_rating || "UNKNOWN"}</Pill>
-              <div style={{ fontSize: 12, color: "#888", marginTop: 8, marginBottom: 4 }}>{vulnResults.summary}</div>
+              <div style={{ fontSize: 12, color: "#888", marginTop: 8, marginBottom: 4, lineHeight: 1.6, wordBreak: "break-word", overflowWrap: "break-word", maxWidth: "100%", textAlign: "center", padding: "0 12px" }}>{vulnResults.summary}</div>
               <div style={{ fontSize: 11, color: "#F39C12", marginTop: 12, animation: "synthPulse 1.2s infinite" }}>
                 Proceeding to persona stress testing...
               </div>
@@ -958,7 +977,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
                     <span style={{ fontSize: 18, width: 28, textAlign: "center" }}>{cat.icon}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: "#ddd" }}>{cat.name}</div>
-                      <div style={{ fontSize: 10, color: "#888", lineHeight: 1.4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cat.finding}</div>
+                      <div style={{ fontSize: 10, color: "#888", lineHeight: 1.4, wordBreak: "break-word", overflowWrap: "break-word" }}>{cat.finding}</div>
                     </div>
                     <div style={{ textAlign: "right", flexShrink: 0 }}>
                       <div style={{ fontSize: 16, fontWeight: 700, color: ratingColor(cat.rating) }}>{cat.score}</div>
@@ -973,7 +992,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
               <div style={{ ...S.card, borderLeft: "4px solid #E74C3C" }}>
                 <div style={S.sectionTitle}>Critical Findings</div>
                 {vulnResults.critical_findings.map((f, i) => (
-                  <div key={i} style={{ fontSize: 12, color: "#E74C3C", marginBottom: 4, lineHeight: 1.5 }}>• {f}</div>
+                  <div key={i} style={{ fontSize: 12, color: "#E74C3C", marginBottom: 4, lineHeight: 1.5, wordBreak: "break-word", overflowWrap: "break-word" }}>• {f}</div>
                 ))}
               </div>
             )}
@@ -982,7 +1001,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
               <div style={{ ...S.card, borderLeft: "4px solid #F39C12" }}>
                 <div style={S.sectionTitle}>Remediation Suggestions</div>
                 {vulnResults.remediation.map((r, i) => (
-                  <div key={i} style={{ fontSize: 12, color: "#F39C12", marginBottom: 4, lineHeight: 1.5 }}>• {r}</div>
+                  <div key={i} style={{ fontSize: 12, color: "#F39C12", marginBottom: 4, lineHeight: 1.5, wordBreak: "break-word", overflowWrap: "break-word" }}>• {r}</div>
                 ))}
               </div>
             )}
@@ -1445,7 +1464,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
           </div>
           <div>
             <Pill color={ratingColor(vulnResults.overall_rating)}>{vulnResults.overall_rating}</Pill>
-            <div style={{ fontSize: 11, color: "#888", marginTop: 4, lineHeight: 1.4 }}>{vulnResults.summary}</div>
+            <div style={{ fontSize: 11, color: "#888", marginTop: 4, lineHeight: 1.4, wordBreak: "break-word", overflowWrap: "break-word" }}>{vulnResults.summary}</div>
           </div>
         </div>
         {allCats.length > 0 && (
@@ -1463,7 +1482,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
           <div style={{ marginTop: 10, padding: "8px 12px", background: "#E74C3C10", borderRadius: 8, border: "1px solid #E74C3C25" }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "#E74C3C", marginBottom: 4 }}>Critical Findings</div>
             {vulnResults.critical_findings.map((f, i) => f && (
-              <div key={i} style={{ fontSize: 11, color: "#ccc", marginBottom: 2, lineHeight: 1.5 }}>• {f}</div>
+              <div key={i} style={{ fontSize: 11, color: "#ccc", marginBottom: 2, lineHeight: 1.5, wordBreak: "break-word", overflowWrap: "break-word" }}>• {f}</div>
             ))}
           </div>
         )}
@@ -1473,7 +1492,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
           <div style={{ marginTop: 6, padding: "8px 12px", background: "#27AE6010", borderRadius: 8, border: "1px solid #27AE6025" }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "#27AE60", marginBottom: 4 }}>Remediation</div>
             {vulnResults.remediation.map((r, i) => r && (
-              <div key={i} style={{ fontSize: 11, color: "#ccc", marginBottom: 2, lineHeight: 1.5 }}>• {r}</div>
+              <div key={i} style={{ fontSize: 11, color: "#ccc", marginBottom: 2, lineHeight: 1.5, wordBreak: "break-word", overflowWrap: "break-word" }}>• {r}</div>
             ))}
           </div>
         )}
@@ -1855,8 +1874,8 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
         </div>
       ) : (
         <div style={S.card}>
-          <textarea style={S.textarea} value={targetPrompt} onChange={e => setTargetPrompt(e.target.value)}
-            placeholder={selectedBot === "custom" ? "Write your bot's system prompt here..." : ""} />
+          <textarea style={S.textarea} value={targetPrompt} onChange={e => { setTargetPrompt(e.target.value); if (!selectedBot) setSelectedBot("custom"); }}
+            placeholder={selectedBot === "custom" || !selectedBot ? "Write your bot's system prompt here..." : ""} />
         </div>
       )}
 
@@ -1963,8 +1982,32 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
       { key: "tone_empathy", label: "Empathy", icon: "💛" }, { key: "safety", label: "Safety", icon: "🛡️" },
       { key: "adaptability", label: "Adapt", icon: "🔄" }
     ];
+    const grapeScore = computeGrapeScore(vulnResults?.overall_score, evaluation.overall_score);
+    const grapeInfo = grapeScore != null ? grapeLabel(grapeScore) : null;
+
     return (
       <div style={S.container}>
+        {/* GRAPE Overall Score */}
+        {grapeInfo && (
+          <div style={{ ...S.card, textAlign: "center", background: "linear-gradient(180deg, #0D0D12, #131316)", padding: "36px 20px", border: `1px solid ${grapeInfo.color}40`, position: "relative", overflow: "hidden" }}>
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${grapeInfo.color}, ${grapeInfo.color}60)` }} />
+            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 2, color: "#555", marginBottom: 16 }}>GRAPE Overall Score</div>
+            <ScoreRing score={grapeScore} size={120} stroke={8} />
+            <Pill color={grapeInfo.color}>{grapeInfo.text}</Pill>
+            <div style={{ display: "flex", justifyContent: "center", gap: 32, marginTop: 18 }}>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 22, fontWeight: 700, color: vulnResults?.overall_score >= 70 ? "#27AE60" : vulnResults?.overall_score >= 40 ? "#F39C12" : "#E74C3C" }}>{vulnResults?.overall_score ?? "—"}<span style={{ fontSize: 12, color: "#666" }}>/100</span></div>
+                <div style={{ fontSize: 10, color: "#666", marginTop: 2 }}>Vulnerability (40%)</div>
+              </div>
+              <div style={{ width: 1, background: "#2A2A30" }} />
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 22, fontWeight: 700, color: evaluation.overall_score >= 7 ? "#27AE60" : evaluation.overall_score >= 4 ? "#F39C12" : "#E74C3C" }}>{evaluation.overall_score}<span style={{ fontSize: 12, color: "#666" }}>/10</span></div>
+                <div style={{ fontSize: 10, color: "#666", marginTop: 2 }}>Persona Testing (60%)</div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div style={{ ...S.card, textAlign: "center", background: "linear-gradient(180deg, #1A1A1F, #131316)", padding: "32px 20px", border: "1px solid #2A2A30" }}>
           <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 2, color: "#555", marginBottom: 14 }}>Evaluation Report — {botLabel}</div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, marginBottom: 16 }}>
@@ -1972,7 +2015,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
             <div style={{ textAlign: "left" }}><div style={{ fontSize: 20, fontWeight: 700 }}>{persona.name}</div><Pill color={persona.color}>{persona.difficulty}</Pill></div>
           </div>
           <ScoreRing score={evaluation.overall_score} size={100} stroke={7} />
-          <div style={{ fontSize: 12, color: "#555", marginTop: 6 }}>Overall Score</div>
+          <div style={{ fontSize: 12, color: "#555", marginTop: 6 }}>Persona Score</div>
         </div>
 
         <VulnSummaryCard />
@@ -2113,14 +2156,38 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
         : 0;
     });
 
+    const grapeScore = computeGrapeScore(vulnResults?.overall_score, avgScore);
+    const grapeInfo = grapeScore != null ? grapeLabel(grapeScore) : null;
+
     return (
       <div style={S.container}>
+        {/* GRAPE Overall Score */}
+        {grapeInfo && (
+          <div style={{ ...S.card, textAlign: "center", background: "linear-gradient(180deg, #0D0D12, #131316)", padding: "36px 20px", border: `1px solid ${grapeInfo.color}40`, position: "relative", overflow: "hidden" }}>
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${grapeInfo.color}, ${grapeInfo.color}60)` }} />
+            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 2, color: "#555", marginBottom: 16 }}>GRAPE Overall Score</div>
+            <ScoreRing score={grapeScore} size={120} stroke={8} />
+            <Pill color={grapeInfo.color}>{grapeInfo.text}</Pill>
+            <div style={{ display: "flex", justifyContent: "center", gap: 32, marginTop: 18 }}>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 22, fontWeight: 700, color: vulnResults?.overall_score >= 70 ? "#27AE60" : vulnResults?.overall_score >= 40 ? "#F39C12" : "#E74C3C" }}>{vulnResults?.overall_score ?? "—"}<span style={{ fontSize: 12, color: "#666" }}>/100</span></div>
+                <div style={{ fontSize: 10, color: "#666", marginTop: 2 }}>Vulnerability (40%)</div>
+              </div>
+              <div style={{ width: 1, background: "#2A2A30" }} />
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 22, fontWeight: 700, color: avgScore >= 7 ? "#27AE60" : avgScore >= 4 ? "#F39C12" : "#E74C3C" }}>{avgScore}<span style={{ fontSize: 12, color: "#666" }}>/10</span></div>
+                <div style={{ fontSize: 10, color: "#666", marginTop: 2 }}>Persona Testing (60%)</div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Aggregate header */}
         <div style={{ ...S.card, textAlign: "center", background: "linear-gradient(180deg, #1A1A1F, #131316)", padding: "32px 20px", border: "1px solid #2A2A30" }}>
           <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 2, color: "#555", marginBottom: 14 }}>Full Evaluation Report — {botLabel}</div>
           <div style={{ fontSize: 14, color: "#888", marginBottom: 12 }}>{completedPersonas.length} of {PERSONAS.length} personas tested</div>
           <ScoreRing score={avgScore} size={100} stroke={7} />
-          <div style={{ fontSize: 12, color: "#555", marginTop: 6 }}>Average Overall Score</div>
+          <div style={{ fontSize: 12, color: "#555", marginTop: 6 }}>Average Persona Score</div>
         </div>
 
         <VulnSummaryCard />
@@ -2146,9 +2213,9 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
             const ev = r?.evaluation;
             const isExpanded = expandedPersona === p.id;
             return (
-              <div key={p.id} style={{ ...S.card, cursor: "pointer", borderColor: ev ? p.color + "60" : "#2A2A30", transition: "all 0.2s" }}
+              <div key={p.id} style={{ ...S.card, cursor: "pointer", borderColor: isExpanded ? p.color : ev ? p.color + "30" : "#2A2A30", transition: "all 0.2s", ...(isExpanded ? { gridColumn: "1 / -1" } : {}) }}
                 onClick={() => setExpandedPersona(isExpanded ? null : p.id)}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: ev ? 10 : 0 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                     <span style={{ fontSize: 24 }}>{p.icon}</span>
                     <div>
@@ -2156,49 +2223,74 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
                       <Pill color={p.color}>{p.difficulty}</Pill>
                     </div>
                   </div>
-                  {ev && <ScoreRing score={ev.overall_score} size={48} stroke={4} />}
-                  {r?.error && <Pill color="#E74C3C">Error</Pill>}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    {ev && <ScoreRing score={ev.overall_score} size={48} stroke={4} />}
+                    {r?.error && <Pill color="#E74C3C">Error</Pill>}
+                    <span style={{ fontSize: 14, color: "#555", transition: "transform 0.2s", transform: isExpanded ? "rotate(180deg)" : "rotate(0)" }}>▼</span>
+                  </div>
                 </div>
-                {r?.error && (
-                  <div style={{ marginTop: 6, padding: "8px 10px", background: "#E74C3C12", borderRadius: 8, border: "1px solid #E74C3C25" }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#E74C3C", marginBottom: 3 }}>Error Details</div>
-                    <div style={{ fontSize: 11, color: "#ccc", lineHeight: 1.5 }}>{r.error}</div>
-                    {r.messages?.length > 0 && (
-                      <div style={{ marginTop: 6, borderTop: "1px solid #2A2A30", paddingTop: 6 }}>
-                        <div style={{ fontSize: 10, color: "#666", marginBottom: 3 }}>Partial transcript ({r.messages.length} messages before error):</div>
-                        {r.messages.slice(-2).map((m, i) => (
-                          <div key={i} style={{ fontSize: 10, color: "#888", marginBottom: 2, lineHeight: 1.4 }}>
-                            <span style={{ fontWeight: 600, color: m.role === "user" ? p.color : "#2471A3" }}>{m.icon}</span>{" "}
-                            {m.text?.slice(0, 120)}{m.text?.length > 120 ? "..." : ""}
+                {/* Collapsed: just show compact category scores */}
+                {ev && !isExpanded && (
+                  <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                    {cats.map(c => (
+                      <span key={c.key} style={{ fontSize: 10, color: "#888" }}>
+                        {c.icon} <span style={{ fontWeight: 700, color: (ev[c.key]?.score || 0) >= 7 ? "#27AE60" : (ev[c.key]?.score || 0) >= 4 ? "#F39C12" : "#E74C3C" }}>{ev[c.key]?.score || 0}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {!ev && !r?.error && <div style={{ fontSize: 12, color: "#555", marginTop: 6 }}>Not completed</div>}
+                {r?.error && !isExpanded && (
+                  <div style={{ fontSize: 11, color: "#E74C3C", marginTop: 6 }}>{r.error?.slice(0, 80)}{r.error?.length > 80 ? "..." : ""}</div>
+                )}
+                {/* Expanded: full details */}
+                {isExpanded && (
+                  <div style={{ marginTop: 12, borderTop: "1px solid #2A2A30", paddingTop: 12 }}>
+                    {r?.error && (
+                      <div style={{ padding: "8px 10px", background: "#E74C3C12", borderRadius: 8, border: "1px solid #E74C3C25", marginBottom: 10 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#E74C3C", marginBottom: 3 }}>Error Details</div>
+                        <div style={{ fontSize: 11, color: "#ccc", lineHeight: 1.5 }}>{r.error}</div>
+                        {r.messages?.length > 0 && (
+                          <div style={{ marginTop: 6, borderTop: "1px solid #2A2A30", paddingTop: 6 }}>
+                            <div style={{ fontSize: 10, color: "#666", marginBottom: 3 }}>Partial transcript ({r.messages.length} messages before error):</div>
+                            {r.messages.slice(-2).map((m, i) => (
+                              <div key={i} style={{ fontSize: 10, color: "#888", marginBottom: 2, lineHeight: 1.4 }}>
+                                <span style={{ fontWeight: 600, color: m.role === "user" ? p.color : "#2471A3" }}>{m.icon}</span>{" "}
+                                {m.text?.slice(0, 120)}{m.text?.length > 120 ? "..." : ""}
+                              </div>
+                            ))}
                           </div>
-                        ))}
+                        )}
                       </div>
+                    )}
+                    {ev && (
+                      <>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, textAlign: "center", marginBottom: 12 }}>
+                          {cats.map(c => (
+                            <div key={c.key}>
+                              <ScoreRing score={ev[c.key]?.score || 0} size={44} stroke={3} />
+                              <div style={{ fontSize: 10, color: "#888", marginTop: 3 }}>{c.icon} {c.label}</div>
+                              <div style={{ fontSize: 9, color: "#666", marginTop: 2, lineHeight: 1.3 }}>{ev[c.key]?.reason || ""}</div>
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+                          <div>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: "#27AE60", marginBottom: 4 }}>Strengths</div>
+                            {(ev.strengths || []).map((s, i) => <div key={i} style={{ fontSize: 11, color: "#888", marginBottom: 2, lineHeight: 1.4 }}>• {s}</div>)}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: "#E74C3C", marginBottom: 4 }}>Failures</div>
+                            {(ev.failures || []).map((f, i) => <div key={i} style={{ fontSize: 11, color: "#888", marginBottom: 2, lineHeight: 1.4 }}>• {f}</div>)}
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#F39C12", marginBottom: 4 }}>Recommendation</div>
+                        <div style={{ fontSize: 11, color: "#888", lineHeight: 1.4, marginBottom: 8 }}>{ev.recommendation}</div>
+                        <TranscriptSection messages={r.messages} inline />
+                      </>
                     )}
                   </div>
                 )}
-                {ev && (
-                  <>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4, textAlign: "center", marginBottom: isExpanded ? 10 : 0 }}>
-                      {cats.map(c => (
-                        <div key={c.key} style={{ fontSize: 10, color: "#888" }}>
-                          {c.icon} <span style={{ fontWeight: 700, color: (ev[c.key]?.score || 0) >= 7 ? "#27AE60" : (ev[c.key]?.score || 0) >= 4 ? "#F39C12" : "#E74C3C" }}>{ev[c.key]?.score || 0}</span>
-                        </div>
-                      ))}
-                    </div>
-                    {isExpanded && (
-                      <div style={{ borderTop: "1px solid #2A2A30", paddingTop: 10 }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: "#27AE60", marginBottom: 4 }}>Strengths</div>
-                        {(ev.strengths || []).map((s, i) => <div key={i} style={{ fontSize: 11, color: "#888", marginBottom: 2, lineHeight: 1.4 }}>• {s}</div>)}
-                        <div style={{ fontSize: 11, fontWeight: 700, color: "#E74C3C", marginTop: 6, marginBottom: 4 }}>Failures</div>
-                        {(ev.failures || []).map((f, i) => <div key={i} style={{ fontSize: 11, color: "#888", marginBottom: 2, lineHeight: 1.4 }}>• {f}</div>)}
-                        <div style={{ fontSize: 11, fontWeight: 700, color: "#F39C12", marginTop: 6, marginBottom: 4 }}>Recommendation</div>
-                        <div style={{ fontSize: 11, color: "#888", lineHeight: 1.4 }}>{ev.recommendation}</div>
-                        <TranscriptSection messages={r.messages} inline />
-                      </div>
-                    )}
-                  </>
-                )}
-                {!ev && !r?.error && <div style={{ fontSize: 12, color: "#555", marginTop: 6 }}>Not completed</div>}
               </div>
             );
           })}

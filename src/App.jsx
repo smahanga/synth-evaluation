@@ -276,7 +276,7 @@ async function callLLM(systemPrompt, messages, { engine = "claude", maxTokens = 
 
     if (resp.status === 429) {
       if (attempt < maxRetries) {
-        const wait = 10000 * Math.pow(2, attempt); // 10s, 20s, 40s, 80s, 160s
+        const wait = 5000 * Math.pow(2, attempt); // 5s, 10s, 20s, 40s, 80s
         await new Promise(r => setTimeout(r, wait));
         continue;
       }
@@ -428,7 +428,7 @@ export default function App() {
   const [apiUrl, setApiUrl] = useState("");
   const [apiUsername, setApiUsername] = useState("");
   const [apiPassword, setApiPassword] = useState("");
-  const [maxTurns, setMaxTurns] = useState(4);
+  const [maxTurns, setMaxTurns] = useState(3);
   const [messages, setMessages] = useState([]);
   const [status, setStatus] = useState("");
   const [evaluation, setEvaluation] = useState(null);
@@ -474,7 +474,7 @@ export default function App() {
   const resetAll = () => {
     abortRef.current = true;
     setView("home"); setSelectedPersona(null); setSelectedBot(null);
-    setTargetPrompt(""); setMaxTurns(4); setMessages([]);
+    setTargetPrompt(""); setMaxTurns(3); setMessages([]);
     setStatus(""); setEvaluation(null); setError(null); setConvDone(false);
     setApiUrl(""); setAgentResults({}); setExpandedPersona(null);
     setVulnResults(null); setVulnStatus(""); setVulnScanIdx(0);

@@ -1670,7 +1670,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
           const canRun = selectedBot && (selectedBot === "external_api" ? apiUrl.trim() : targetPrompt.trim());
           const label = selectedPersona
             ? `🚀  Run Stress Test — ${PERSONAS.find(p => p.id === selectedPersona)?.name}`
-            : "🚀  Run All 6 Personas";
+            : "🚀  Stress Test";
           return (<>
             <button style={{ ...S.btn(true), opacity: canRun ? 1 : 0.4, padding: "13px 44px", fontSize: 15 }}
               disabled={!canRun} onClick={() => setView("questionnaire")}>{label}</button>

@@ -2150,8 +2150,6 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
   //  RESULTS-ALL VIEW — Aggregated dashboard for all personas
   // ════════════════════════════════════════════════════════════
   const renderResultsAll = () => {
-    const bot = TARGET_BOTS.find(b => b.id === selectedBot) || TARGET_BOTS[0];
-    const botLabel = bot.id === "custom" ? "Custom Bot" : bot.id === "external_api" ? "External Bot" : bot.name;
     const cats = [
       { key: "clarity", label: "Clarity", icon: "💬" }, { key: "helpfulness", label: "Helpful", icon: "✅" },
       { key: "tone_empathy", label: "Empathy", icon: "💛" }, { key: "safety", label: "Safety", icon: "🛡️" },
@@ -2195,14 +2193,6 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
             </div>
           </div>
         )}
-
-        {/* Aggregate header */}
-        <div style={{ ...S.card, textAlign: "center", background: "linear-gradient(180deg, #1A1A1F, #131316)", padding: "32px 20px", border: "1px solid #2A2A30" }}>
-          <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 2, color: "#555", marginBottom: 14 }}>Full Evaluation Report — {botLabel}</div>
-          <div style={{ fontSize: 14, color: "#888", marginBottom: 12 }}>{completedPersonas.length} of {PERSONAS.length} personas tested</div>
-          <ScoreRing score={avgScore} size={100} stroke={7} />
-          <div style={{ fontSize: 12, color: "#555", marginTop: 6 }}>Average Persona Score</div>
-        </div>
 
         <VulnSummaryCard />
 

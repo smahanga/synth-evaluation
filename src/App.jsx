@@ -2159,7 +2159,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
             <button style={{ ...S.btn(true), opacity: canRun ? 1 : 0.4, padding: "13px 44px", fontSize: 15 }}
               disabled={!canRun} onClick={() => setView("questionnaire")}>{label}</button>
             {!canRun && <div style={{ fontSize: 12, color: "#555", marginTop: 6 }}>Choose a bot and configure its prompt above</div>}
-            {canRun && !selectedPersona && <div style={{ fontSize: 12, color: "#F39C12", marginTop: 6 }}>No persona selected — will test with all 6 personas sequentially</div>}
+            {canRun && !selectedPersona && <div style={{ fontSize: 12, color: "#F39C12", marginTop: 6 }}>No persona selected — will test with all 6 personas in parallel</div>}
           </>);
         })()}
       </div>

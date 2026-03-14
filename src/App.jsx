@@ -1832,21 +1832,21 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
             Should the chatbot prioritize being warm and conversational, or direct and to-the-point?
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: 12, color: "#27AE60", fontWeight: 600, minWidth: 90, textAlign: "right" }}>User-Friendly</span>
+            <span style={{ fontSize: 12, color: "#E67E22", fontWeight: 600, minWidth: 90, textAlign: "right" }}>To-the-Point</span>
             <input type="range" min={1} max={10} value={aa.tradeoff}
               onChange={e => updateAA("tradeoff", +e.target.value)}
               style={{ flex: 1, accentColor: "#F39C12" }} />
-            <span style={{ fontSize: 12, color: "#E67E22", fontWeight: 600, minWidth: 90 }}>To-the-Point</span>
+            <span style={{ fontSize: 12, color: "#27AE60", fontWeight: 600, minWidth: 90 }}>User-Friendly</span>
           </div>
           <div style={{ textAlign: "center", fontSize: 20, fontWeight: 700, color: "#F39C12", marginTop: 6 }}>{aa.tradeoff}/10</div>
           <div style={{ textAlign: "center", fontSize: 11, color: "#888", marginTop: 6, lineHeight: 1.5, padding: "6px 12px", background: "#ffffff06", borderRadius: 8 }}>
             {aa.tradeoff <= 3
-              ? "Warm & conversational — the bot should be patient, use friendly language, offer detailed explanations, and prioritize making the user feel comfortable."
+              ? "Fully to-the-point — no fluff, no pleasantries. Short, direct responses. Best for technical/power users who want answers fast."
               : aa.tradeoff <= 5
-              ? "Balanced — friendly but efficient. The bot should be approachable while still being concise and getting to the answer quickly."
-              : aa.tradeoff <= 7
               ? "Leaning direct — concise and business-focused. Minimal small talk, clear answers, professional tone."
-              : "Fully to-the-point — no fluff, no pleasantries. Short, direct responses. Best for technical/power users who want answers fast."}
+              : aa.tradeoff <= 7
+              ? "Balanced — friendly but efficient. The bot should be approachable while still being concise and getting to the answer quickly."
+              : "Warm & conversational — the bot should be patient, use friendly language, offer detailed explanations, and prioritize making the user feel comfortable."}
           </div>
         </div>
 

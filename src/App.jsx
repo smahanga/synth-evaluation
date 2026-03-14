@@ -619,7 +619,7 @@ Category Scores: Clarity ${evalSingle.clarity?.score}/10, Helpfulness ${evalSing
     const history = [{ iteration: 0, prompt: originalPrompt, grapeScore: origGrape, vulnScore: origVulnScore, personaScore: origPersonaScore, label: "Original" }];
     setRefineHistory([...history]);
 
-    const MAX_ITERATIONS = 2;
+    const MAX_ITERATIONS = 1;
     let currentVulnResults = vulnResults;
     let currentAgentResults = agentResults;
     let currentEval = evaluation;
@@ -1715,7 +1715,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
             </div>
             {isWorking && refineIteration > 0 && (
               <div style={{ textAlign: "center", fontSize: 11, color: "#F39C12", marginTop: 6 }}>
-                Iteration {refineIteration} of 2 — {refineStatus === "generating" ? "generating candidate" : refineStatus === "testing" ? "vulnerability scan" : "persona testing"}...
+                Refining — {refineStatus === "generating" ? "generating candidate" : refineStatus === "testing" ? "vulnerability scan" : "persona testing"}...
               </div>
             )}
           </div>

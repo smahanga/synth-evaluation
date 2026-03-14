@@ -840,7 +840,8 @@ ${currentAssessment.dataSchema.slice(0, 3000)}`;
   // ──────────────────────────────────────────────────────────
   //  SINGLE PERSONA SUBAGENT — runs one persona simulation
   // ──────────────────────────────────────────────────────────
-  const runSinglePersonaAgent = useCallback(async (personaId, { botId, prompt, turns, extApiUrl, extUsername, extPassword, onUpdate }) => {
+  // Runs conversation only (no evaluation) — returns transcript data for later evaluation
+  const runPersonaConversation = useCallback(async (personaId, { botId, prompt, turns, extApiUrl, extUsername, extPassword, onUpdate }) => {
     const persona = PERSONAS.find(p => p.id === personaId);
     const bot = TARGET_BOTS.find(b => b.id === botId) || TARGET_BOTS[0];
     const botName = bot.id === "custom" ? "Custom Bot" : bot.id === "external_api" ? "External Bot" : bot.name;
@@ -893,7 +894,17 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
       }
 
       if (abortRef.current) { onUpdate({ status: "Cancelled", messages: agentMessages }); return null; }
+      return { persona, transcript, agentMessages };
+    } catch (err) {
+      onUpdate({ status: "Error", messages: agentMessages, error: err.message });
+      return null;
+    }
+  }, []);
 
+  // Runs evaluation on a completed conversation transcript (uses Gemini)
+  const runPersonaEvaluation = useCallback(async (convResult, onUpdate) => {
+    const { persona, transcript, agentMessages } = convResult;
+    try {
       onUpdate({ status: "📊 Evaluating...", messages: agentMessages });
       const assessCtx = formatAssessmentContext(assessmentRef.current);
       const transcriptText = transcript.map(m => `[${m.speaker}]: ${m.text}`).join("\n\n");
@@ -911,6 +922,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
       return null;
     }
   }, []);
+
 
   // ──────────────────────────────────────────────────────────
   //  COORDINATING AGENT — invokes /api/orchestrate (Claude Code SDK
@@ -938,46 +950,59 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
       extApiUrl: apiUrl, extUsername: apiUsername, extPassword: apiPassword,
     };
 
-    // Run personas in two waves of 3 to avoid rate limits
-    const runPersonaWithRetry = async (persona, delayMs) => {
-      if (delayMs > 0) await new Promise(r => setTimeout(r, delayMs));
-      if (abortRef.current) return;
-
-      const maxRetries = 2;
-      for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        if (abortRef.current) return;
-        if (attempt > 0) {
-          setAgentResults(prev => ({
-            ...prev,
-            [persona.id]: { ...prev[persona.id], status: `Retrying (${attempt}/${maxRetries})...`, error: null }
-          }));
-          await new Promise(r => setTimeout(r, 2000 * attempt));
-        } else {
-          setAgentResults(prev => ({
-            ...prev,
-            [persona.id]: { ...prev[persona.id], status: `Running — ${persona.icon} testing...` }
-          }));
-        }
-
-        const result = await runSinglePersonaAgent(persona.id, {
-          ...config,
-          onUpdate: (update) => {
-            setAgentResults(prev => ({ ...prev, [persona.id]: { ...prev[persona.id], ...update } }));
-          }
-        });
-
-        // If successful or cancelled, stop retrying
-        if (result !== null || abortRef.current) return;
-
-        if (attempt < maxRetries) continue;
-      }
+    const makeOnUpdate = (personaId) => (update) => {
+      setAgentResults(prev => ({ ...prev, [personaId]: { ...prev[personaId], ...update } }));
     };
 
-    // Run all 6 personas in parallel with slight stagger (2 API keys handle the load)
-    await Promise.all(PERSONAS.map((p, idx) => runPersonaWithRetry(p, idx * 500)));
+    // Run conversation with retries (no evaluation yet)
+    const runConvWithRetry = async (persona, delayMs) => {
+      if (delayMs > 0) await new Promise(r => setTimeout(r, delayMs));
+      if (abortRef.current) return null;
+
+      const maxRetries = 2;
+      const onUpdate = makeOnUpdate(persona.id);
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        if (abortRef.current) return null;
+        if (attempt > 0) {
+          onUpdate({ status: `Retrying (${attempt}/${maxRetries})...`, error: null });
+          await new Promise(r => setTimeout(r, 2000 * attempt));
+        } else {
+          onUpdate({ status: `Running — ${persona.icon} testing...` });
+        }
+
+        const result = await runPersonaConversation(persona.id, { ...config, onUpdate });
+        if (result !== null || abortRef.current) return result;
+        if (attempt < maxRetries) continue;
+      }
+      return null;
+    };
+
+    // Wave 1: conversations for first 3 personas
+    const wave1 = PERSONAS.slice(0, 3);
+    const wave1Results = await Promise.all(wave1.map((p, idx) => runConvWithRetry(p, idx * 500)));
+    if (abortRef.current) { setView("results-all"); return; }
+
+    // Start wave 2 conversations AND wave 1 evaluations in parallel
+    const wave2 = PERSONAS.slice(3);
+    const [wave2Results] = await Promise.all([
+      // Wave 2 conversations (uses Claude)
+      Promise.all(wave2.map((p, idx) => runConvWithRetry(p, idx * 500))),
+      // Wave 1 evaluations (uses Gemini — no conflict)
+      Promise.all(wave1Results.map(r => {
+        if (!r || abortRef.current) return null;
+        return runPersonaEvaluation(r, makeOnUpdate(r.persona.id));
+      }))
+    ]);
+    if (abortRef.current) { setView("results-all"); return; }
+
+    // Wave 2 evaluations
+    await Promise.all(wave2Results.map(r => {
+      if (!r || abortRef.current) return null;
+      return runPersonaEvaluation(r, makeOnUpdate(r.persona.id));
+    }));
 
     if (!abortRef.current) setView("results-all");
-  }, [selectedBot, targetPrompt, maxTurns, apiUrl, apiUsername, apiPassword, runSinglePersonaAgent, runVulnerabilityCheck]);
+  }, [selectedBot, targetPrompt, maxTurns, apiUrl, apiUsername, apiPassword, runPersonaConversation, runPersonaEvaluation, runVulnerabilityCheck]);
 
   // ──────────────────────────────────────────────────────────
   //  SINGLE PERSONA SIMULATION (original behavior)

@@ -216,10 +216,10 @@ function formatAssessmentContext(answers) {
   // If all defaults / unanswered, return empty
   if (!riskTolerance && escalationTypes.length === 0 && !untrustedContent && tradeoff === 5 && !dataSchema) return "";
 
-  const tradeoffLabel = tradeoff <= 3 ? "strongly user-friendly (warm, conversational, detailed explanations)"
-    : tradeoff <= 5 ? "balanced (friendly but efficient)"
-    : tradeoff <= 7 ? "leaning direct (concise, business-focused)"
-    : "strongly to-the-point (minimal, no fluff, bottom-line answers)";
+  const tradeoffLabel = tradeoff <= 3 ? "strongly to-the-point (minimal, no fluff, bottom-line answers)"
+    : tradeoff <= 5 ? "leaning direct (concise, business-focused)"
+    : tradeoff <= 7 ? "balanced (friendly but efficient)"
+    : "strongly user-friendly (warm, conversational, detailed explanations)";
 
   const riskLabel = riskTolerance === "low" ? "Low — very conservative, zero tolerance for errors or safety gaps"
     : riskTolerance === "medium" ? "Medium — some tolerance for minor issues, but safety-critical failures are unacceptable"
@@ -236,7 +236,7 @@ function formatAssessmentContext(answers) {
     : "Not specified";
 
   let ctx = `BUSINESS CONTEXT FROM PRE-ASSESSMENT:
-- Communication style preference: ${tradeoffLabel} (${tradeoff}/10 on directness scale)
+- Communication style preference: ${tradeoffLabel} (${tradeoff}/10 on user-friendliness scale)
 - Risk tolerance: ${riskLabel}
 - Escalation channels available: ${escLabel}
 - Untrusted content exposure: ${contentLabel}`;

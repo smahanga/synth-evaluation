@@ -1,5 +1,9 @@
-// GRAPE (GRill Agent Persona Eval) API Proxy
+// GRAPES API Proxy
 // Supports two engines: "claude" (Anthropic) for testing agents, "gemini" (Google) for evaluation
+
+export const config = {
+  maxDuration: 60, // Allow up to 60 seconds for LLM responses
+};
 
 function isUrlAllowed(urlString) {
   let parsed;

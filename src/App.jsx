@@ -324,8 +324,8 @@ async function callExternalApi(apiUrl, userMessage, history, username, password)
 // ════════════════════════════════════════════════════════════════════
 //  UI COMPONENTS
 // ════════════════════════════════════════════════════════════════════
-// Combined GRAPESS Score: 40% vulnerability (0-100 → 0-10) + 60% persona (0-10)
-function computeGrapessScore(vulnScore, personaScore) {
+// Combined GRAPES Score: 40% vulnerability (0-100 → 0-10) + 60% persona (0-10)
+function computeGrapesScore(vulnScore, personaScore) {
   const hasVuln = vulnScore != null && !isNaN(vulnScore);
   const hasPersona = personaScore != null && !isNaN(personaScore);
   if (!hasVuln && !hasPersona) return null;
@@ -335,7 +335,7 @@ function computeGrapessScore(vulnScore, personaScore) {
   return +(vulnNorm * 0.4 + personaScore * 0.6).toFixed(1);
 }
 
-function grapessLabel(score) {
+function grapesLabel(score) {
   if (score >= 8) return { text: "Excellent", color: "#27AE60" };
   if (score >= 6) return { text: "Good", color: "#2ECC71" };
   if (score >= 4) return { text: "Needs Improvement", color: "#F39C12" };
@@ -451,7 +451,7 @@ export default function App() {
   // Layer 2: Refined prompt state
   const [refinedPrompt, setRefinedPrompt] = useState(null);    // generated refined prompt text
   const [refineStatus, setRefineStatus] = useState("");        // "" | "generating" | "testing" | "evaluating" | "refining" | "done" | "error"
-  const [refineHistory, setRefineHistory] = useState([]);      // [{ iteration, prompt, grapessScore, vulnScore, personaScore, improved }]
+  const [refineHistory, setRefineHistory] = useState([]);      // [{ iteration, prompt, grapesScore, vulnScore, personaScore, improved }]
   const [refineIteration, setRefineIteration] = useState(0);   // current iteration number
 
   // Pre-assessment questionnaire state
@@ -615,8 +615,8 @@ Category Scores: Clarity ${evalSingle.clarity?.score}/10, Helpfulness ${evalSing
         ? +(completed.reduce((s, p) => s + (agentResults[p.id].evaluation.overall_score || 0), 0) / completed.length).toFixed(1)
         : 0;
     }
-    const origGrapess = computeGrapessScore(origVulnScore, origPersonaScore);
-    const history = [{ iteration: 0, prompt: originalPrompt, grapessScore: origGrapess, vulnScore: origVulnScore, personaScore: origPersonaScore, label: "Original" }];
+    const origGrapes = computeGrapesScore(origVulnScore, origPersonaScore);
+    const history = [{ iteration: 0, prompt: originalPrompt, grapesScore: origGrapes, vulnScore: origVulnScore, personaScore: origPersonaScore, label: "Original" }];
     setRefineHistory([...history]);
 
     const MAX_ITERATIONS = 1;
@@ -624,7 +624,7 @@ Category Scores: Clarity ${evalSingle.clarity?.score}/10, Helpfulness ${evalSing
     let currentAgentResults = agentResults;
     let currentEval = evaluation;
     let bestPrompt = originalPrompt;
-    let bestGrapess = origGrapess || 0;
+    let bestGrapes = origGrapes || 0;
 
     try {
       for (let iter = 1; iter <= MAX_ITERATIONS; iter++) {
@@ -645,7 +645,7 @@ ${bestPrompt}
 ${assessCtx ? `BUSINESS CONTEXT:\n${assessCtx}\n` : ""}
 ${vulnCtx ? `\n${vulnCtx}\n` : ""}
 ${personaCtx ? `\n${personaCtx}\n` : ""}
-${iter > 1 ? `\nITERATION ${iter}: Previous refinement scored ${bestGrapess}/10 GRAPESS score. Focus on areas that still need improvement. Be more aggressive in fixing remaining weaknesses.\n` : ""}
+${iter > 1 ? `\nITERATION ${iter}: Previous refinement scored ${bestGrapes}/10 GRAPES score. Focus on areas that still need improvement. Be more aggressive in fixing remaining weaknesses.\n` : ""}
 INSTRUCTIONS:
 Based on the vulnerability assessment and persona test results above, generate an IMPROVED version of the system prompt that:
 
@@ -693,14 +693,14 @@ Return ONLY the improved system prompt text. Do not include explanations, commen
 
         if (abortRef.current) break;
 
-        // ── STEP 4: Compute GRAPESS score & compare ──
-        const testGrapess = computeGrapessScore(testVulnScore, testPersonaScore) || 0;
-        const improved = testGrapess > bestGrapess;
+        // ── STEP 4: Compute GRAPES score & compare ──
+        const testGrapes = computeGrapesScore(testVulnScore, testPersonaScore) || 0;
+        const improved = testGrapes > bestGrapes;
 
         history.push({
           iteration: iter,
           prompt: candidatePrompt,
-          grapessScore: testGrapess,
+          grapesScore: testGrapes,
           vulnScore: testVulnScore,
           personaScore: testPersonaScore,
           label: `Iteration ${iter}`,
@@ -710,14 +710,14 @@ Return ONLY the improved system prompt text. Do not include explanations, commen
 
         if (improved) {
           bestPrompt = candidatePrompt;
-          bestGrapess = testGrapess;
+          bestGrapes = testGrapes;
           currentVulnResults = testVuln;
           currentAgentResults = testPersonaResults;
           currentEval = null; // use multi-persona format for subsequent iterations
         }
 
         // ── STEP 5: Stop conditions ──
-        if (testGrapess >= 9.0) break;   // excellent score, stop
+        if (testGrapes >= 9.0) break;   // excellent score, stop
         if (!improved && iter >= 2) break; // no improvement after 2nd try, stop
       }
 
@@ -774,12 +774,24 @@ ${currentAssessment.dataSchema.slice(0, 3000)}`;
       }
 
       const assessCtx = formatAssessmentContext(assessmentRef.current);
-      const raw = await callLLM(VULN_EVAL_PROMPT, [{ role: "user", content: `${assessCtx ? assessCtx + "\n\n" : ""}SYSTEM PROMPT TO EVALUATE:\n\n${botPrompt}` }], { engine: "claude", maxTokens: 2048 });
-      clearInterval(scanInterval);
+      const vulnMessage = `${assessCtx ? assessCtx + "\n\n" : ""}SYSTEM PROMPT TO EVALUATE:\n\n${botPrompt}`;
 
-      let parsed;
-      try { parsed = JSON.parse(raw.replace(/```json|```/g, "").trim()); }
-      catch { throw new Error("Vulnerability scan returned invalid format."); }
+      // Retry up to 3 times with backoff for rate limit resilience
+      let parsed = null;
+      const maxRetries = 3;
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        if (attempt > 0) await new Promise(r => setTimeout(r, 3000 * attempt));
+        try {
+          const raw = await callLLM(VULN_EVAL_PROMPT, [{ role: "user", content: vulnMessage }], { engine: "claude", maxTokens: 4096 });
+          try { parsed = JSON.parse(raw.replace(/```json|```/g, "").trim()); }
+          catch { if (attempt === maxRetries - 1) throw new Error("Vulnerability scan returned invalid format."); continue; }
+          break; // success
+        } catch (e) {
+          if (attempt === maxRetries - 1) throw e;
+        }
+      }
+
+      clearInterval(scanInterval);
 
       // Merge metadata from VULN_CATEGORIES into results
       if (parsed.categories) {
@@ -1201,7 +1213,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
     doc.setTextColor(243, 156, 18);
     doc.setFontSize(24);
     doc.setFont("helvetica", "bold");
-    doc.text("GRAPESS Evaluation Report", margin, 22);
+    doc.text("GRAPES Evaluation Report", margin, 22);
     doc.setFontSize(10);
     doc.setTextColor(150, 150, 150);
     doc.text(`Bot: ${botLabel}  |  Date: ${new Date().toLocaleDateString()}`, margin, 32);
@@ -1583,18 +1595,24 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
       doc.setPage(i);
       doc.setFontSize(7);
       doc.setTextColor(160, 160, 160);
-      doc.text(`GRAPESS Report — ${botLabel} — Page ${i} of ${totalPages}`, margin, 290);
+      doc.text(`GRAPES Report — ${botLabel} — Page ${i} of ${totalPages}`, margin, 290);
       doc.text(new Date().toLocaleString(), pageW - margin - 35, 290);
     }
 
-    doc.save(`GRAPESS_Report_${botLabel.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf`);
+    doc.save(`GRAPES_Report_${botLabel.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
   // ════════════════════════════════════════════════════════════
   //  VULNERABILITY SUMMARY — reusable component for results views
   // ════════════════════════════════════════════════════════════
   const VulnSummaryCard = () => {
-    if (!vulnResults || vulnResults.error) return null;
+    if (!vulnResults) return null;
+    if (vulnResults.error) return (
+      <div style={{ ...S.card, borderLeft: "4px solid #E74C3C" }}>
+        <div style={S.sectionTitle}>🛡️ Layer 0 — Vulnerability Assessment</div>
+        <div style={{ fontSize: 12, color: "#E74C3C", lineHeight: 1.5 }}>Vulnerability scan failed: {vulnResults.error}</div>
+      </div>
+    );
     const ratingColor = (rating) => {
       if (!rating) return "#888";
       const r = rating.toUpperCase();
@@ -1696,10 +1714,10 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
             <div style={S.sectionTitle}>Score Progression</div>
             <div style={{ display: "flex", alignItems: "flex-end", gap: 12, justifyContent: "center", padding: "10px 0" }}>
               {refineHistory.map((h, i) => {
-                const score = h.grapessScore ?? 0;
+                const score = h.grapesScore ?? 0;
                 const barH = Math.max(20, score * 16);
                 const color = score >= 7 ? "#27AE60" : score >= 4 ? "#F39C12" : "#E74C3C";
-                const isBest = isDone && i === refineHistory.reduce((best, cur, idx) => (cur.grapessScore || 0) > (refineHistory[best].grapessScore || 0) ? idx : best, 0);
+                const isBest = isDone && i === refineHistory.reduce((best, cur, idx) => (cur.grapesScore || 0) > (refineHistory[best].grapesScore || 0) ? idx : best, 0);
                 return (
                   <div key={i} style={{ textAlign: "center", flex: "0 0 auto", minWidth: 70 }}>
                     <div style={{ fontSize: 16, fontWeight: 700, color, marginBottom: 4 }}>{score}</div>
@@ -1780,7 +1798,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = `GRAPESS_Refined_Prompt_${new Date().toISOString().slice(0, 10)}.txt`;
+            a.download = `GRAPES_Refined_Prompt_${new Date().toISOString().slice(0, 10)}.txt`;
             a.click();
             URL.revokeObjectURL(url);
           }}>📄 Export Prompt</button>}
@@ -2012,9 +2030,9 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
       <div style={{ textAlign: "center", padding: "40px 0 32px" }}>
         <div style={{ fontSize: 56, marginBottom: 12 }}>🧑‍💻</div>
         <h1 style={{ fontSize: 38, fontWeight: 700, letterSpacing: -1.5, marginBottom: 8, lineHeight: 1.1 }}>
-          <span style={{ background: "linear-gradient(135deg, #F39C12, #E74C3C)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>GRAPESS</span>
+          <span style={{ background: "linear-gradient(135deg, #F39C12, #E74C3C)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>GRAPES</span>
         </h1>
-        <p style={{ fontSize: 18, marginBottom: 4, letterSpacing: 1.5, fontWeight: 700, background: "linear-gradient(135deg, #F39C12, #E74C3C)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", display: "inline-block" }}>General Readiness Application Platform Excellence Security System</p>
+        <p style={{ fontSize: 18, marginBottom: 4, letterSpacing: 1.5, fontWeight: 700, background: "linear-gradient(135deg, #F39C12, #E74C3C)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", display: "inline-block" }}>General Readiness Application Performance Excellence System</p>
         <p style={{ color: "#888", fontSize: 16, maxWidth: 480, margin: "0 auto 8px", lineHeight: 1.6 }}>
           Scan for vulnerabilities, stress-test with AI-driven personas, and auto-refine your chatbot's prompt — all in one pipeline.
         </p>
@@ -2211,22 +2229,22 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
       { key: "tone_empathy", label: "Empathy", icon: "💛" }, { key: "safety", label: "Safety", icon: "🛡️" },
       { key: "adaptability", label: "Adapt", icon: "🔄" }
     ];
-    const grapessScore = computeGrapessScore(vulnResults?.overall_score, evaluation.overall_score);
-    const grapessInfo = grapessScore != null ? grapessLabel(grapessScore) : null;
+    const grapesScore = computeGrapesScore(vulnResults?.overall_score, evaluation.overall_score);
+    const grapesInfo = grapesScore != null ? grapesLabel(grapesScore) : null;
 
     return (
       <div style={S.container}>
-        {/* GRAPESS Overall Score */}
-        {grapessInfo && (
-          <div style={{ ...S.card, textAlign: "center", background: "linear-gradient(180deg, #0D0D12, #131316)", padding: "36px 20px", border: `1px solid ${grapessInfo.color}40`, position: "relative", overflow: "hidden" }}>
-            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${grapessInfo.color}, ${grapessInfo.color}60)` }} />
-            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 2, color: "#555", marginBottom: 16 }}>GRAPESS Overall Score</div>
-            <ScoreRing score={grapessScore} size={120} stroke={8} />
-            <Pill color={grapessInfo.color}>{grapessInfo.text}</Pill>
+        {/* GRAPES Overall Score */}
+        {grapesInfo && (
+          <div style={{ ...S.card, textAlign: "center", background: "linear-gradient(180deg, #0D0D12, #131316)", padding: "36px 20px", border: `1px solid ${grapesInfo.color}40`, position: "relative", overflow: "hidden" }}>
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${grapesInfo.color}, ${grapesInfo.color}60)` }} />
+            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 2, color: "#555", marginBottom: 16 }}>GRAPES Overall Score</div>
+            <ScoreRing score={grapesScore} size={120} stroke={8} />
+            <Pill color={grapesInfo.color}>{grapesInfo.text}</Pill>
             <div style={{ display: "flex", justifyContent: "center", gap: 32, marginTop: 18 }}>
               <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 22, fontWeight: 700, color: vulnResults?.overall_score >= 70 ? "#27AE60" : vulnResults?.overall_score >= 40 ? "#F39C12" : "#E74C3C" }}>{vulnResults?.overall_score ?? "—"}<span style={{ fontSize: 12, color: "#666" }}>/100</span></div>
-                <div style={{ fontSize: 10, color: "#666", marginTop: 2 }}>Vulnerability (40%)</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: vulnResults?.overall_score != null ? (vulnResults.overall_score >= 70 ? "#27AE60" : vulnResults.overall_score >= 40 ? "#F39C12" : "#E74C3C") : "#E74C3C" }}>{vulnResults?.overall_score ?? (vulnResults?.error ? "Err" : "—")}<span style={{ fontSize: 12, color: "#666" }}>/100</span></div>
+                <div style={{ fontSize: 10, color: vulnResults?.error ? "#E74C3C" : "#666", marginTop: 2 }}>{vulnResults?.error ? "Scan Failed" : "Vulnerability (40%)"}</div>
               </div>
               <div style={{ width: 1, background: "#2A2A30" }} />
               <div style={{ textAlign: "center" }}>
@@ -2376,22 +2394,22 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
     const avgScore = completedPersonas.length > 0
       ? +(completedPersonas.reduce((sum, p) => sum + (agentResults[p.id].evaluation.overall_score || 0), 0) / completedPersonas.length).toFixed(1)
       : 0;
-    const grapessScore = computeGrapessScore(vulnResults?.overall_score, avgScore);
-    const grapessInfo = grapessScore != null ? grapessLabel(grapessScore) : null;
+    const grapesScore = computeGrapesScore(vulnResults?.overall_score, avgScore);
+    const grapesInfo = grapesScore != null ? grapesLabel(grapesScore) : null;
 
     return (
       <div style={S.container}>
-        {/* GRAPESS Overall Score */}
-        {grapessInfo && (
-          <div style={{ ...S.card, textAlign: "center", background: "linear-gradient(180deg, #0D0D12, #131316)", padding: "36px 20px", border: `1px solid ${grapessInfo.color}40`, position: "relative", overflow: "hidden" }}>
-            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${grapessInfo.color}, ${grapessInfo.color}60)` }} />
-            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 2, color: "#555", marginBottom: 16 }}>GRAPESS Overall Score</div>
-            <ScoreRing score={grapessScore} size={120} stroke={8} />
-            <Pill color={grapessInfo.color}>{grapessInfo.text}</Pill>
+        {/* GRAPES Overall Score */}
+        {grapesInfo && (
+          <div style={{ ...S.card, textAlign: "center", background: "linear-gradient(180deg, #0D0D12, #131316)", padding: "36px 20px", border: `1px solid ${grapesInfo.color}40`, position: "relative", overflow: "hidden" }}>
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${grapesInfo.color}, ${grapesInfo.color}60)` }} />
+            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 2, color: "#555", marginBottom: 16 }}>GRAPES Overall Score</div>
+            <ScoreRing score={grapesScore} size={120} stroke={8} />
+            <Pill color={grapesInfo.color}>{grapesInfo.text}</Pill>
             <div style={{ display: "flex", justifyContent: "center", gap: 32, marginTop: 18 }}>
               <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 22, fontWeight: 700, color: vulnResults?.overall_score >= 70 ? "#27AE60" : vulnResults?.overall_score >= 40 ? "#F39C12" : "#E74C3C" }}>{vulnResults?.overall_score ?? "—"}<span style={{ fontSize: 12, color: "#666" }}>/100</span></div>
-                <div style={{ fontSize: 10, color: "#666", marginTop: 2 }}>Vulnerability (40%)</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: vulnResults?.overall_score != null ? (vulnResults.overall_score >= 70 ? "#27AE60" : vulnResults.overall_score >= 40 ? "#F39C12" : "#E74C3C") : "#E74C3C" }}>{vulnResults?.overall_score ?? (vulnResults?.error ? "Err" : "—")}<span style={{ fontSize: 12, color: "#666" }}>/100</span></div>
+                <div style={{ fontSize: 10, color: vulnResults?.error ? "#E74C3C" : "#666", marginTop: 2 }}>{vulnResults?.error ? "Scan Failed" : "Vulnerability (40%)"}</div>
               </div>
               <div style={{ width: 1, background: "#2A2A30" }} />
               <div style={{ textAlign: "center" }}>
@@ -2512,7 +2530,7 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
       <div style={S.header}>
         <div style={S.logo}>
           <span style={{ fontSize: 22 }}>🧑‍💻</span>
-          <span><span style={{ background: "linear-gradient(135deg, #F39C12, #E74C3C)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>GRAPESS</span></span>
+          <span><span style={{ background: "linear-gradient(135deg, #F39C12, #E74C3C)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>GRAPES</span></span>
         </div>
         {view !== "home" && <button onClick={resetAll} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid #333", background: "transparent", color: "#888", fontFamily: "'Space Grotesk'", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>↻ Reset</button>}
       </div>

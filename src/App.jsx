@@ -1002,18 +1002,22 @@ IMPORTANT: Your questions should be relevant to this specific service/product. D
     const [wave2Results] = await Promise.all([
       // Wave 2 conversations (uses Claude)
       Promise.all(wave2.map((p, idx) => runConvWithRetry(p, idx * 500))),
-      // Wave 1 evaluations (uses Gemini — no conflict)
-      Promise.all(wave1Results.map(r => {
+      // Wave 1 evaluations (uses Gemini — stagger to avoid Gemini rate limits)
+      Promise.all(wave1Results.map((r, idx) => {
         if (!r || abortRef.current) return null;
-        return runPersonaEvaluation(r, makeOnUpdate(r.persona.id));
+        return new Promise(resolve => setTimeout(resolve, idx * 2000)).then(() =>
+          runPersonaEvaluation(r, makeOnUpdate(r.persona.id))
+        );
       }))
     ]);
     if (abortRef.current) { setView("results-all"); return; }
 
-    // Wave 2 evaluations
-    await Promise.all(wave2Results.map(r => {
+    // Wave 2 evaluations (stagger Gemini calls)
+    await Promise.all(wave2Results.map((r, idx) => {
       if (!r || abortRef.current) return null;
-      return runPersonaEvaluation(r, makeOnUpdate(r.persona.id));
+      return new Promise(resolve => setTimeout(resolve, idx * 2000)).then(() =>
+        runPersonaEvaluation(r, makeOnUpdate(r.persona.id))
+      );
     }));
 
     if (!abortRef.current) setView("results-all");
